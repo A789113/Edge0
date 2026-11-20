@@ -29,7 +29,7 @@ impl Source {
         match value {
             "huggingface" | "Hugging Face" => Ok(Self::HuggingFace),
             "modelscope" | "ModelScope" => Ok(Self::ModelScope),
-            _ => Err(format!("Unknown download source: {value}")),
+            _ => Err(format!("未知下载源：{value}")),
         }
     }
     pub fn label(self) -> &'static str {
@@ -287,7 +287,7 @@ pub fn parse_modelscope_files(bytes: &[u8]) -> Result<Vec<ListedFile>, String> {
 fn reject_path(path: &str) -> Result<(), String> {
     safe_relative(path)
         .then_some(())
-        .ok_or_else(|| format!("Refusing unsafe download path: {path}"))
+        .ok_or_else(|| format!("拒绝不安全的下载路径：{path}"))
 }
 fn listed(
     path: &str,
@@ -296,7 +296,7 @@ fn listed(
     checksum: String,
 ) -> Result<ListedFile, String> {
     if checksum.chars().any(|c| !c.is_ascii_hexdigit()) {
-        return Err(format!("Checksum for {path} is not hexadecimal"));
+        return Err(format!("{path} 的校验和不是十六进制"));
     }
     Ok(ListedFile {
         path: path.to_owned(),
@@ -309,7 +309,7 @@ fn json_u64(value: &serde_json::Value, key: &str) -> Result<u64, String> {
     value
         .get(key)
         .and_then(|value| value.as_u64())
-        .ok_or_else(|| format!("Missing {key}"))
+        .ok_or_else(|| format!("缺少 {key}"))
 }
 
 pub fn huggingface_model_url(repo: &str) -> String {

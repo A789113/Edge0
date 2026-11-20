@@ -9,7 +9,7 @@ import {
 
 export function DownloadingBadge({ active }: { active: boolean }) {
   if (!active) return null;
-  return <span className="badge"><span className="dot busy"/>Downloading</span>;
+  return <span className="badge"><span className="dot busy"/>下载中</span>;
 }
 
 export function DownloadCard({ model, job, present, blocked, disabled, onDownload, onPause, onResume, onDelete }: {
@@ -25,25 +25,25 @@ export function DownloadCard({ model, job, present, blocked, disabled, onDownloa
   let cls = '';
   if (phase === 'present') {
     cls = 'present';
-    tag = <span className="tag ok"><Icon name="check"/>On this machine</span>;
-    body = <><p>{decimalGb(model.bytes)} GB · on this machine</p><p className="mono" title={present}>{present}</p></>;
+    tag = <span className="tag ok"><Icon name="check"/>已在本机</span>;
+    body = <><p>{decimalGb(model.bytes)} GB · 已在本机</p><p className="mono" title={present}>{present}</p></>;
   } else if (phase === 'running') {
     cls = 'active';
-    tag = <span className="tag busy"><span className="dot busy"/>Downloading</span>;
+    tag = <span className="tag busy"><span className="dot busy"/>下载中</span>;
     body = <>{bar(percent)}<p className="dl-meta">{job && runningMeta(job)}</p></>;
-    actions = <button className="btn" disabled={disabled} onClick={onPause}>Pause</button>;
+    actions = <button className="btn" disabled={disabled} onClick={onPause}>暂停</button>;
   } else if (phase === 'checking') {
     cls = 'active';
-    tag = <span className="tag busy"><span className="spin"/>Checking</span>;
-    body = <>{bar(100)}<p className="dl-meta">{decimalGb(model.bytes)} GB downloaded · checking the downloaded files and the model folder</p></>;
+    tag = <span className="tag busy"><span className="spin"/>校验中</span>;
+    body = <>{bar(100)}<p className="dl-meta">{decimalGb(model.bytes)} GB 已下载 · 正在校验下载的文件和模型文件夹</p></>;
   } else if (phase === 'paused' || phase === 'failed') {
     const failed = phase === 'failed';
-    tag = failed ? <span className="tag err">Failed</span> : <span className="tag warn">Paused</span>;
-    body = <>{bar(percent, failed ? 'var(--err)' : 'var(--text-3)')}<p className="dl-meta">{job && pausedMeta(job)}</p>{failed ? <p style={{ color: 'var(--err)' }}>{job?.error}</p> : <p>Downloaded files are kept; Resume continues where it stopped.</p>}</>;
-    actions = <><button className="btn primary" disabled={disabled || blocked} onClick={onResume}>Resume</button><button className="btn danger" disabled={disabled} onClick={onDelete}>Delete</button></>;
+    tag = failed ? <span className="tag err">失败</span> : <span className="tag warn">已暂停</span>;
+    body = <>{bar(percent, failed ? 'var(--err)' : 'var(--text-3)')}<p className="dl-meta">{job && pausedMeta(job)}</p>{failed ? <p style={{ color: 'var(--err)' }}>{job?.error}</p> : <p>已下载的文件会保留；点「继续下载」从断点接着来。</p>}</>;
+    actions = <><button className="btn primary" disabled={disabled || blocked} onClick={onResume}>继续下载</button><button className="btn danger" disabled={disabled} onClick={onDelete}>删除</button></>;
   } else {
-    body = <><p>{decimalGb(model.bytes)} GB · {model.files} files</p><p className="mono">{model.repo}</p></>;
-    actions = <button className="btn primary" disabled={disabled || blocked} onClick={onDownload}><Icon name="down"/>Download</button>;
+    body = <><p>{decimalGb(model.bytes)} GB · {model.files} 个文件</p><p className="mono">{model.repo}</p></>;
+    actions = <button className="btn primary" disabled={disabled || blocked} onClick={onDownload}><Icon name="down"/>下载</button>;
   }
   return <div className={`card model-card dl-card${cls ? ` ${cls}` : ''}`}><div className="mi"><Icon name={phase === 'present' ? 'check' : 'down'}/></div><div><h4>{model.name}{tag}</h4>{body}</div><div className="inline">{actions}</div></div>;
 }
@@ -61,23 +61,23 @@ export function DownloadDialog({ model, job, platform, resume, measuring, starti
   const canStart = !starting && !measuring && !unreachable && reachable && space != null && !space.low && enoughSpace(freeBytes ?? 0, need);
   const sources: SourceId[] = ['modelscope', 'huggingface'];
   return <div className="scrim" onClick={event => { if (event.target === event.currentTarget) onClose(); }}><div className="dialog" role="dialog" aria-modal="true">
-    <header><h2>{resume ? 'Resume' : 'Download'} {model.name}</h2><p>{model.repo} · {decimalGb(model.bytes)} GB · {model.files} files{job && job.done_bytes > 0 ? ` · ${decimalGb(job.done_bytes)} GB already downloaded` : ''}</p></header>
+    <header><h2>{resume ? '继续下载' : '下载'} {model.name}</h2><p>{model.repo} · {decimalGb(model.bytes)} GB · {model.files} 个文件{job && job.done_bytes > 0 ? ` · 已下载 ${decimalGb(job.done_bytes)} GB` : ''}</p></header>
     <div className="body">
-      {unreachable && <div className="banner err">Both sources are unreachable. Check the network, then measure again.</div>}
-      <div className="field"><label>Source</label>
+      {unreachable && <div className="banner err">两个下载源都无法访问。请检查网络后重新测速。</div>}
+      <div className="field"><label>下载源</label>
         <div className="src-list">{sources.map(id => {
           const ms = id === 'huggingface' ? report.huggingface_ms : report.modelscope_ms;
-          return <label key={id} className={`src${source === id ? ' on' : ''}`}><input type="radio" name="src" checked={source === id} onChange={() => onSource(id)}/><span><b>{sourceLabel(id)}</b><small>{sourceHost(id)}</small></span><span className={`ms${measuring ? ' pending' : ''}`}>{measuring ? <span className="spin"/> : ms == null ? 'unreachable' : <>{ms} ms{id === fastest && <> · <span className="tag ok">Fastest</span></>}</>}</span></label>;
+          return <label key={id} className={`src${source === id ? ' on' : ''}`}><input type="radio" name="src" checked={source === id} onChange={() => onSource(id)}/><span><b>{sourceLabel(id)}</b><small>{sourceHost(id)}</small></span><span className={`ms${measuring ? ' pending' : ''}`}>{measuring ? <span className="spin"/> : ms == null ? '无法访问' : <>{ms} 毫秒{id === fastest && <> · <span className="tag ok">最快</span></>}</>}</span></label>;
         })}</div>
-        <div className="src-foot">{measuring ? 'Measuring response time…' : 'Chosen by response time just now; pick the other one to use it instead.'}<span className="sp"/>{!measuring && <button type="button" onClick={onMeasure}>Measure again</button>}</div>
+        <div className="src-foot">{measuring ? '正在测量响应时间…' : '按刚才的响应时间自动选择；想用另一个就点它。'}<span className="sp"/>{!measuring && <button type="button" onClick={onMeasure}>重新测速</button>}</div>
       </div>
-      <div className="field last"><label>Save to</label>
-        <div className="path-row"><input className="input" value={directory} readOnly disabled={resume}/><button className="btn" type="button" disabled={resume} onClick={onChangeDirectory}><Icon name="folder"/>Change…</button></div>
-        <p className="note">Saved into <span className="mono">{savedInto(directory, model.folder, platform)}</span></p>
+      <div className="field last"><label>保存到</label>
+        <div className="path-row"><input className="input" value={directory} readOnly disabled={resume}/><button className="btn" type="button" disabled={resume} onClick={onChangeDirectory}><Icon name="folder"/>更改…</button></div>
+        <p className="note">将保存到 <span className="mono">{savedInto(directory, model.folder, platform)}</span></p>
         {space && <p className={`note${space.low ? ' err' : ''}`}>{space.text}</p>}
       </div>
     </div>
-    <footer><button className="btn" type="button" onClick={onClose}>Cancel</button><button className="btn primary" type="button" disabled={!canStart} onClick={onStart}>{resume ? 'Resume' : 'Download'}</button></footer>
+    <footer><button className="btn" type="button" onClick={onClose}>取消</button><button className="btn primary" type="button" disabled={!canStart} onClick={onStart}>{resume ? '继续下载' : '下载'}</button></footer>
   </div></div>;
 }
 
@@ -178,10 +178,10 @@ export function DownloadSection({ assets, disabled, firstRun, actions }: { asset
   const confirming = confirmId ? models.find(model => model.id === confirmId) : undefined;
   const confirmingJob = confirmId ? jobFor(confirmId) : undefined;
   return <>
-    <div className={`section-label${firstRun ? ' first' : ''}`}>Download<span className="sp"/></div>
+    <div className={`section-label${firstRun ? ' first' : ''}`}>下载<span className="sp"/></div>
     <div className="grid">{models.map(model => <DownloadCard key={model.id} model={model} job={jobFor(model.id)} present={presentPath(model, assets)} blocked={busy} disabled={disabled || removing.includes(model.id)} onDownload={() => void open(model.id, false)} onPause={() => void actions.pause(model.id).catch(fail)} onResume={() => void open(model.id, true)} onDelete={() => setConfirmId(model.id)}/>)}</div>
-    <p className="help">Each model downloads into a folder of its own. Models already on this machine are marked instead of offered again.</p>
+    <p className="help">每个模型都下载到各自的文件夹。已经在本机上的模型会被标记出来，不会重复提供。</p>
     {dialog && selected && <DownloadDialog model={selected} job={jobFor(selected.id)} platform={actions.platform} resume={dialog.resume} measuring={dialog.measuring} starting={dialog.starting} report={dialog.report} source={dialog.source} directory={dialog.directory} freeBytes={dialog.freeBytes} drive={dialog.drive} onClose={() => setDialog(null)} onSource={source => setDialog(current => current ? { ...current, source } : current)} onMeasure={() => void open(selected.id, dialog.resume)} onChangeDirectory={() => void changeDirectory()} onStart={() => void beginDownload(actions, dialog, setDialog, fail, starting)}/>}
-    {confirming && <div className="scrim" onClick={event => { if (event.target === event.currentTarget) setConfirmId(null); }}><div className="dialog narrow" role="alertdialog" aria-modal="true"><header><h2>Delete the partial download?</h2><p>{confirming.name} · {decimalGb(confirmingJob?.done_bytes ?? 0)} GB downloaded so far will be removed. Downloading it again starts from the beginning.</p></header><footer><button className="btn" type="button" onClick={() => setConfirmId(null)}>Keep</button><button className="btn danger" type="button" onClick={() => { const id = confirming.id; setConfirmId(null); void removeDownload(actions, id, setRemoving, fail, deleting.current); }}>Delete</button></footer></div></div>}
+    {confirming && <div className="scrim" onClick={event => { if (event.target === event.currentTarget) setConfirmId(null); }}><div className="dialog narrow" role="alertdialog" aria-modal="true"><header><h2>删除未完成的下载？</h2><p>{confirming.name} · {decimalGb(confirmingJob?.done_bytes ?? 0)} GB 将被删除。重新下载会从零开始。</p></header><footer><button className="btn" type="button" onClick={() => setConfirmId(null)}>保留</button><button className="btn danger" type="button" onClick={() => { const id = confirming.id; setConfirmId(null); void removeDownload(actions, id, setRemoving, fail, deleting.current); }}>删除</button></footer></div></div>}
   </>;
 }

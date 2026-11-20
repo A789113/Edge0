@@ -57,19 +57,19 @@ export function speedLabel(bps: number): string | null {
 }
 export function etaLabel(seconds: number | null | undefined): string | null {
   if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return null;
-  return `about ${Math.max(1, Math.round(seconds / 60))} min left`;
+  return `约 ${Math.max(1, Math.round(seconds / 60))} 分钟`;
 }
 export function runningMeta(job: JobView): string {
   const speed = speedLabel(job.speed_bps);
   const eta = speed ? etaLabel(job.eta_seconds) : null;
-  const parts = [`${decimalGb(job.done_bytes)} of ${decimalGb(job.total_bytes)} GB`, `${progressPercent(job.done_bytes, job.total_bytes)}%`];
+  const parts = [`${decimalGb(job.done_bytes)} / ${decimalGb(job.total_bytes)} GB`, `${progressPercent(job.done_bytes, job.total_bytes)}%`];
   if (speed) parts.push(speed);
   if (eta) parts.push(eta);
-  parts.push(`from ${job.source}`);
+  parts.push(`来自 ${sourceLabel(job.source)}`);
   return parts.join(' · ');
 }
 export function pausedMeta(job: JobView): string {
-  return `${decimalGb(job.done_bytes)} of ${decimalGb(job.total_bytes)} GB · ${progressPercent(job.done_bytes, job.total_bytes)}% · from ${job.source}`;
+  return `${decimalGb(job.done_bytes)} / ${decimalGb(job.total_bytes)} GB · ${progressPercent(job.done_bytes, job.total_bytes)}% · 来自 ${sourceLabel(job.source)}`;
 }
 export function enoughSpace(free: number, need: number): boolean {
   return free >= need;
@@ -80,9 +80,9 @@ export function remainingBytes(model: CatalogModel, job?: JobView): number {
 }
 export function spaceNote(free: number, need: number, drive: string | null): { text: string; low: boolean } {
   const low = !enoughSpace(free, need);
-  const where = drive ? ` on ${drive}` : '';
-  const tail = low ? ' — not enough space; free some space or choose another folder.' : '';
-  return { low, text: `${decimalGb(free)} GB free${where} · needs ${decimalGb(need)} GB${tail}` };
+  const where = drive ? `${drive}盘` : '';
+  const tail = low ? ' — 空间不足，请清理空间或换个文件夹。' : '';
+  return { low, text: `${where}剩余 ${decimalGb(free)} GB · 需要 ${decimalGb(need)} GB${tail}` };
 }
 export function savedInto(directory: string, folder: string, platform: string): string {
   const separator = platform === 'windows' ? '\\' : '/';
@@ -100,8 +100,8 @@ export function resumeDirectory(partial: string): string | undefined {
 export function sourceHost(source: SourceId): string {
   return source === 'huggingface' ? 'huggingface.co' : 'modelscope.cn';
 }
-export function sourceLabel(source: SourceId): string {
-  return source === 'huggingface' ? 'Hugging Face' : 'ModelScope';
+export function sourceLabel(source: string): string {
+  return source === 'huggingface' || source === 'Hugging Face' ? 'Hugging Face' : source === 'modelscope' || source === 'ModelScope' ? 'ModelScope' : source;
 }
 /** Equal times choose ModelScope, matching the shared source-selection vector. */
 export function fastestSource(huggingfaceMs: number | null, modelscopeMs: number | null): SourceId | null {

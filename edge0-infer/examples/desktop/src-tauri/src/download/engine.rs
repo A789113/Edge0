@@ -195,7 +195,7 @@ pub fn run(
         for handle in handles {
             if handle.join().is_err() {
                 *failure.lock().expect("failure") =
-                    Some("A download worker stopped unexpectedly".into());
+                    Some("下载工作线程意外停止".into());
                 cancel.store(true, Ordering::SeqCst);
             }
         }
@@ -531,7 +531,7 @@ fn finish(spec: &RunSpec, verified: &[String]) -> Outcome {
             .and_then(|name| name.to_str())
             .unwrap_or("model");
         return Outcome::Failed {
-            message: format!("The folder {name} already exists and was not replaced."),
+            message: format!("文件夹 {name} 已存在，未被替换。"),
         };
     }
     if let Err(error) = fs::rename(&spec.partial_dir, &spec.final_dir) {
@@ -546,7 +546,7 @@ fn finish(spec: &RunSpec, verified: &[String]) -> Outcome {
     if let Some(inspect) = &spec.inspect {
         if let Err(reason) = inspect(&spec.final_dir) {
             return Outcome::Failed {
-                message: format!("Inspection failed: {reason}"),
+                message: format!("检查失败：{reason}"),
             };
         }
     }

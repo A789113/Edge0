@@ -81,7 +81,7 @@ pub fn choose_path(directory: bool) -> Result<Option<String>, String> {
     unsafe {
         let panel = object(objc_getClass(c"NSOpenPanel".as_ptr()), c"openPanel");
         if panel.is_null() {
-            return Err("Cannot create the system file chooser".into());
+            return Err("无法创建系统文件选择器".into());
         }
         boolean(panel, c"setCanChooseDirectories:", directory);
         boolean(panel, c"setCanChooseFiles:", !directory);
@@ -104,11 +104,11 @@ pub fn choose_path(directory: bool) -> Result<Option<String>, String> {
         let path = object(url, c"path");
         let utf8 = object(path, c"UTF8String");
         if utf8.is_null() {
-            return Err("Cannot read the selected path".into());
+            return Err("无法读取所选路径".into());
         }
         CStr::from_ptr(utf8.cast())
             .to_str()
             .map(|path| Some(path.to_owned()))
-            .map_err(|_| "The selected path is not UTF-8".into())
+            .map_err(|_| "所选路径不是 UTF-8 编码".into())
     }
 }

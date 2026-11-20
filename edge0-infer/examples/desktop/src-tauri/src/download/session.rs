@@ -181,10 +181,10 @@ impl DownloadHub {
         let (partial, previous, resuming) = {
             let mut inner = self.lock()?;
             if inner.jobs.values().any(|job| job.phase.busy()) {
-                return Err("Another download is already running".into());
+                return Err("已有另一个下载在进行中".into());
             }
             if inner.deleting.contains(id) {
-                return Err("That download is being deleted".into());
+                return Err("该下载正在被删除".into());
             }
             let existing = inner
                 .jobs
@@ -338,7 +338,7 @@ impl DownloadHub {
             let job = inner
                 .jobs
                 .get_mut(id)
-                .ok_or_else(|| "That download is not running".to_owned())?;
+                .ok_or_else(|| "该下载未在运行".to_owned())?;
             job.cancel.store(true, Ordering::SeqCst);
             job.handle.take()
         };
@@ -375,10 +375,10 @@ impl DownloadHub {
                 .get(id)
                 .is_some_and(|job| matches!(job.phase, Phase::Starting))
             {
-                return Err("That download is still starting".into());
+                return Err("该下载仍在启动中".into());
             }
             if !inner.deleting.insert(id.to_owned()) {
-                return Err("That download is already being deleted".into());
+                return Err("该下载已在删除中".into());
             }
             match inner.jobs.get_mut(id) {
                 Some(job) => {
@@ -471,7 +471,7 @@ impl DownloadHub {
             (hit.version, hit.files, switching)
         };
         if files.is_empty() {
-            return Err("The source did not list any files to download".into());
+            return Err("下载源未列出任何可下载文件".into());
         }
         fs::create_dir_all(save_dir).map_err(|error| error.to_string())?;
         self.manager.note_download_started(
@@ -503,7 +503,7 @@ fn model(id: &str) -> Result<&'static CatalogModel, String> {
     catalog()
         .iter()
         .find(|model| model.id == id)
-        .ok_or_else(|| format!("Unknown model: {id}"))
+        .ok_or_else(|| format!("未知模型：{id}"))
 }
 fn source_name(source: Source) -> &'static str {
     match source {
@@ -560,12 +560,12 @@ fn paused_from_disk(id: &str, directory: &str) -> Option<JobView> {
 fn inspect_directory(manager: &crate::service::Manager, directory: &Path) -> Result<(), String> {
     let settings = manager.settings()?;
     if settings.executable.trim().is_empty() {
-        return Err("No edge0-infer executable is configured.".into());
+        return Err("尚未配置 edge0-infer 可执行文件。".into());
     }
     let output = Command::new(&settings.executable)
         .args(["inspect", "--model", &directory.to_string_lossy(), "--json"])
         .output()
-        .map_err(|error| format!("Cannot run edge0-infer: {error}"))?;
+        .map_err(|error| format!("无法运行 edge0-infer：{error}"))?;
     if !output.status.success() {
         let detail = format!(
             "{}{}",

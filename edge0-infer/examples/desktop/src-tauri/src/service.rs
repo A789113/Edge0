@@ -75,13 +75,13 @@ impl Default for Settings {
 }
 impl Settings {
     fn validate(&self) -> Result<(), String> {
-        const WHERE: &str = "Set it under Settings > Engine > Executable.";
+        const WHERE: &str = "请到「设置 → 引擎 → 可执行文件」里指定。";
         if self.executable.trim().is_empty() {
-            return Err(format!("No edge0-infer executable is configured. {WHERE}"));
+            return Err(format!("尚未配置 edge0-infer 可执行文件。{WHERE}"));
         }
         if !Path::new(&self.executable).is_file() {
             return Err(format!(
-                "The edge0-infer executable was not found at {}. It may have been moved or deleted. {WHERE}",
+                "在 {} 找不到 edge0-infer 可执行文件，可能已被移动或删除。{WHERE}",
                 self.executable
             ));
         }
@@ -91,10 +91,10 @@ impl Settings {
         if !["cpu", "metal", "vulkan"].contains(&self.device.as_str())
             || !["", "cpu", "metal", "vulkan"].contains(&self.prefill_device.as_str())
         {
-            return Err("Unknown device selection".into());
+            return Err("未知的设备选择".into());
         }
         if self.port == Some(0) {
-            return Err("Server port must be blank or an integer from 1 to 65535".into());
+            return Err("端口必须留空，或填 1 到 65535 之间的整数".into());
         }
         Ok(())
     }
@@ -179,10 +179,9 @@ pub fn commit_warning(memory: CommitMemory) -> Option<String> {
     (memory.available < LOW_COMMIT).then(|| {
         let gb = |bytes: u64| bytes as f64 / 1e9;
         format!(
-            "Low memory: with the model loaded, only {:.1} GB of the {:.1} GB Windows commit limit is free, so \
-             generating may crash with an out-of-memory error. Increase the page file (System Properties > Advanced > \
-             Performance Settings > Advanced > Virtual memory; for example a fixed size of 96 GB), restart Windows, \
-             and load the model again.",
+            "内存不足：加载模型后仅剩 {:.1} GB 可用（Windows 提交上限共 {:.1} GB），\
+             生成时可能因内存耗尽而崩溃。请增大页面文件（系统属性 → 高级 → 性能设置 → 高级 → 虚拟内存；\
+             例如设为固定 96 GB），重启 Windows 后重新加载模型。",
             gb(memory.available),
             gb(memory.limit)
         )
@@ -344,7 +343,7 @@ impl Manager {
         let path = self.directory.join("settings.json");
         if path.exists() {
             serde_json::from_slice(&fs::read(path).map_err(|e| e.to_string())?)
-                .map_err(|e| format!("Cannot read settings: {e}"))
+                .map_err(|e| format!("无法读取设置：{e}"))
         } else {
             Ok(Settings::default())
         }
@@ -409,7 +408,7 @@ impl Manager {
         if !["system", "light", "dark"].contains(&settings.theme.as_str())
             || !["precise", "balanced", "creative"].contains(&settings.generation_style.as_str())
         {
-            return Err("Invalid appearance or generation setting".into());
+            return Err("外观或生成设置无效".into());
         }
         self.store_settings_unlocked(&settings)
     }
@@ -471,7 +470,7 @@ impl Manager {
         }
         let record: PidRecord =
             serde_json::from_slice(&fs::read(&path).map_err(|e| e.to_string())?)
-                .map_err(|e| format!("Invalid previous service record: {e}"))?;
+                .map_err(|e| format!("先前的服务记录无效：{e}"))?;
         #[cfg(test)]
         if let Some(gate) = self.recovery_gate.lock().unwrap().take() {
             gate.entered.wait();
@@ -553,7 +552,7 @@ impl Manager {
                 let output = Command::new(&executable)
                     .args(["inspect", "--model", path, "--json"])
                     .output()
-                    .map_err(|e| format!("Cannot run edge0-infer: {e}"))?;
+                    .map_err(|e| format!("无法运行 edge0-infer：{e}"))?;
                 let mut ok = output.status.success();
                 let mut detail = if ok {
                     String::new()
@@ -600,7 +599,7 @@ impl Manager {
                         Some(adapter) => Some(adapter),
                         None => {
                             ok = false;
-                            detail = "Asset inspection did not return a model identifier".into();
+                            detail = "资源检查未返回模型标识".into();
                             None
                         }
                     }
@@ -626,7 +625,7 @@ impl Manager {
             settings.executable, settings.assets, settings.device, settings.port
         ));
         if self.closing.load(Ordering::SeqCst) {
-            return Err("The application is shutting down".into());
+            return Err("应用正在关闭".into());
         }
         settings.validate().map_err(|e| {
             trace(&format!("validate failed: {e}"));
@@ -642,7 +641,7 @@ impl Manager {
                     .is_some_and(|(parent, root)| parent == root)
         }) {
             trace("asset check failed: the model is not under a configured asset directory");
-            return Err("Select a configured asset directory".into());
+            return Err("请选择一个已配置的资源目录".into());
         }
         let executable = Path::new(&settings.executable)
             .canonicalize()
@@ -666,7 +665,7 @@ impl Manager {
                     .output()
                     .map_err(|e| {
                         trace(&format!("inspect spawn failed: {e}"));
-                        format!("Cannot run edge0-infer: {e}")
+                        format!("无法运行 edge0-infer：{e}")
                     })?;
                 trace(&format!("inspect exited with {:?}", output.status.code()));
                 is_delegated(serde_json::from_slice(&output.stdout).ok().as_ref())
@@ -680,7 +679,7 @@ impl Manager {
         })?;
         let _starting = self.start_lock.lock().map_err(|e| e.to_string())?;
         if self.epoch.load(Ordering::SeqCst) != epoch || self.closing.load(Ordering::SeqCst) {
-            return Err("Model loading cancelled".into());
+            return Err("模型加载已取消".into());
         }
         let key = canonical(model).to_string_lossy().into_owned();
         let mut reserve = if delegated {
@@ -751,12 +750,12 @@ impl Manager {
         })?;
         let mut publication = self.process.lock().map_err(|e| e.to_string())?;
         if self.epoch.load(Ordering::SeqCst) != epoch || self.closing.load(Ordering::SeqCst) {
-            return Err("Model loading cancelled".into());
+            return Err("模型加载已取消".into());
         }
         let mut command = Command::new(executable);
         if settings.lan_access {
             if crate::storage::read_token(&self.directory)?.is_none() {
-                return Err("Enable network access with an API token first".into());
+                return Err("请先开启网络访问并设置 API 令牌".into());
             }
         }
         trace(&format!("spawning: {} {:?}", executable.display(), args));
@@ -771,7 +770,7 @@ impl Manager {
         })?;
         let mut child = command.spawn().map_err(|e| {
             trace(&format!("spawn failed: {e}"));
-            format!("Cannot start edge0-infer: {e}")
+            format!("无法启动 edge0-infer：{e}")
         })?;
         trace(&format!("spawned pid {}", child.id()));
         let lifetime = match platform::attach(&child) {
@@ -807,7 +806,7 @@ impl Manager {
                 let _ = child.kill();
                 let _ = child.wait();
                 let _ = fs::remove_file(self.record_path());
-                return Err("Cannot read service stderr".into());
+                return Err("无法读取服务错误输出".into());
             }
         };
         let lines = Arc::new(Mutex::new(VecDeque::new()));
@@ -839,13 +838,13 @@ impl Manager {
         loop {
             if self.epoch.load(Ordering::SeqCst) != epoch || self.closing.load(Ordering::SeqCst) {
                 self.stop_process(Some(epoch))?;
-                return Err("Model loading cancelled".into());
+                return Err("模型加载已取消".into());
             }
             let status = self.status();
             if !status.running {
                 self.stop_process(Some(epoch))?;
                 return Err(format!(
-                    "Service exited before becoming ready:\n{}",
+                    "服务尚未就绪就退出了：\n{}",
                     status.detail
                 ));
             }
@@ -860,7 +859,7 @@ impl Manager {
             if Instant::now() >= deadline {
                 let detail = status.detail;
                 self.stop_process(Some(epoch))?;
-                return Err(format!("Model loading timed out:\n{detail}"));
+                return Err(format!("模型加载超时：\n{detail}"));
             }
             thread::sleep(Duration::from_millis(50));
         }
@@ -892,13 +891,13 @@ impl Manager {
             thread::sleep(MEMORY_POLL);
             if self.epoch.load(Ordering::SeqCst) != epoch || self.closing.load(Ordering::SeqCst) {
                 self.stop_process(Some(epoch))?;
-                return Err("Model loading cancelled".into());
+                return Err("模型加载已取消".into());
             }
             let status = self.status();
             if !status.running {
                 self.stop_process(Some(epoch))?;
                 return Err(format!(
-                    "Service exited before becoming ready:\n{}",
+                    "服务尚未就绪就退出了：\n{}",
                     status.detail
                 ));
             }
@@ -922,7 +921,7 @@ impl Manager {
         let Ok(mut process) = self.process.lock() else {
             return Status {
                 running: false,
-                detail: "Service state lock failed".into(),
+                detail: "服务状态锁定失败".into(),
             };
         };
         let Some(process) = process.as_mut() else {
@@ -1113,9 +1112,9 @@ mod tests {
             available: 600_000_000,
         })
         .unwrap();
-        assert!(low.starts_with("Low memory:"), "{low}");
-        assert!(low.contains("0.6 GB of the 104.5 GB"), "{low}");
-        assert!(low.contains("page file"), "{low}");
+        assert!(low.starts_with("内存不足"), "{low}");
+        assert!(low.contains("仅剩 0.6 GB 可用"), "{low}");
+        assert!(low.contains("页面文件"), "{low}");
         // the same PC with the development model: 24 GB left
         assert_eq!(
             commit_warning(CommitMemory {
@@ -1320,7 +1319,7 @@ mod tests {
             .manager
             .save_settings(&invalid)
             .unwrap_err()
-            .contains("edge0-infer executable was not found"));
+            .contains("找不到 edge0-infer 可执行文件"));
         assert!(fixture.manager.start(&invalid, "ready").is_err());
     }
     #[test]
@@ -1344,7 +1343,7 @@ mod tests {
             .start(&fixture.settings, "error")
             .err()
             .unwrap();
-        assert!(error.contains("Service exited"));
+        assert!(error.contains("服务尚未就绪就退出了"));
         assert!(error.contains("invalid asset"));
         assert!(!fixture.manager.status().running);
         let inspections = fixture.manager.inspect(&fixture.settings).unwrap();
@@ -1939,15 +1938,15 @@ mod tests {
         assert_eq!(loaded.executable, saved.executable);
         assert_eq!(settings_on_disk(&manager), before);
         let message = loaded.validate().unwrap_err();
-        assert!(message.contains("moved or deleted"), "{message}");
+        assert!(message.contains("移动或删除"), "{message}");
         assert!(
-            message.contains("Settings > Engine > Executable"),
+            message.contains("设置 → 引擎 → 可执行文件"),
             "{message}"
         );
         assert!(manager
             .save_settings(&loaded)
             .unwrap_err()
-            .contains("edge0-infer executable was not found"));
+            .contains("找不到 edge0-infer 可执行文件"));
         fs::remove_dir_all(&root).unwrap();
     }
     #[test]
@@ -1958,11 +1957,11 @@ mod tests {
         empty.executable = " ".into();
         let message = empty.validate().unwrap_err();
         assert!(
-            message.starts_with("No edge0-infer executable is configured."),
+            message.starts_with("尚未配置 edge0-infer 可执行文件。"),
             "{message}"
         );
         assert!(
-            message.contains("Settings > Engine > Executable"),
+            message.contains("设置 → 引擎 → 可执行文件"),
             "{message}"
         );
         let mut missing = fixture.settings.clone();
@@ -1972,10 +1971,10 @@ mod tests {
             .into_owned();
         let message = missing.validate().unwrap_err();
         assert!(message.contains(&missing.executable), "{message}");
-        assert!(message.contains("moved or deleted"), "{message}");
+        assert!(message.contains("移动或删除"), "{message}");
         let mut folder = fixture.settings.clone();
         folder.executable = std::env::temp_dir().to_string_lossy().into_owned();
-        assert!(folder.validate().unwrap_err().contains("was not found at"));
+        assert!(folder.validate().unwrap_err().contains("找不到 edge0-infer 可执行文件"));
     }
     #[test]
     fn port_arguments_preserve_explicit_ports_and_default_to_zero() {
@@ -1995,7 +1994,7 @@ mod tests {
             .manager
             .save_settings(&invalid)
             .unwrap_err()
-            .contains("Server port"));
+            .contains("端口必须留空"));
         let mut encoded = serde_json::to_value(&fixture.settings).unwrap();
         encoded["port"] = serde_json::json!(65536);
         assert!(serde_json::from_value::<Settings>(encoded).is_err());

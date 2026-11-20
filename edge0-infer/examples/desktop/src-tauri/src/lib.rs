@@ -53,7 +53,7 @@ async fn engine_info(executable: String) -> Result<String, String> {
         let output = std::process::Command::new(executable)
             .arg("info")
             .output()
-            .map_err(|_| "Cannot run the configured executable")?;
+            .map_err(|_| "无法运行配置的可执行文件")?;
         if !output.status.success() {
             return Err(format!(
                 "Executable check failed: {}",
@@ -71,16 +71,16 @@ async fn choose_path(_app: tauri::AppHandle, directory: bool) -> Result<Option<S
         #[cfg(target_os = "macos")]
         {
             let (sender, receiver) = std::sync::mpsc::sync_channel(1);
-            _app.run_on_main_thread(move || { let result = platform::choose_path(directory); let _ = sender.send(result); }).map_err(|_| "Cannot open the system file chooser")?;
-            receiver.recv().map_err(|_| "The system file chooser closed unexpectedly")?
+            _app.run_on_main_thread(move || { let result = platform::choose_path(directory); let _ = sender.send(result); }).map_err(|_| "无法打开系统文件选择器")?;
+            receiver.recv().map_err(|_| "系统文件选择器意外关闭")?
         }
         #[cfg(target_os = "windows")]
         {
         let output = std::process::Command::new("powershell.exe").args(["-NoProfile", "-STA", "-Command", if directory { "Add-Type -AssemblyName System.Windows.Forms; $picker = New-Object System.Windows.Forms.FolderBrowserDialog; if ($picker.ShowDialog() -eq 'OK') { $picker.SelectedPath }" } else { "Add-Type -AssemblyName System.Windows.Forms; $picker = New-Object System.Windows.Forms.OpenFileDialog; if ($picker.ShowDialog() -eq 'OK') { $picker.FileName }" }]).output();
-        let output = output.map_err(|_| "Cannot open the system file chooser")?;
+        let output = output.map_err(|_| "无法打开系统文件选择器")?;
         if !output.status.success() {
             if String::from_utf8_lossy(&output.stderr).contains("-128") { return Ok(None); }
-            return Err("The system file chooser failed".into());
+            return Err("系统文件选择器打开失败".into());
         }
         let selected = String::from_utf8_lossy(&output.stdout).trim().to_owned();
         Ok((!selected.is_empty()).then_some(selected))

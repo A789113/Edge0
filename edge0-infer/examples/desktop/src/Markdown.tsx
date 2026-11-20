@@ -7,7 +7,7 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   const { disabled, copy } = useContext(CopyControls);
   const code = Children.toArray(children).find(child => isValidElement<{ className?: string }>(child));
   const language = isValidElement<{ className?: string }>(code) ? code.props.className?.match(/language-(\S+)/)?.[1] : undefined;
-  return <div className="code"><header>{language ?? 'code'}<span className="sp"/><button type="button" className="icon-btn" title="Copy code" disabled={disabled} onClick={() => void copy(textContent(children).replace(/\n$/, ''))}><Icon name="copy"/></button></header><pre>{children}</pre></div>;
+  return <div className="code"><header>{language ?? '代码'}<span className="sp"/><button type="button" className="icon-btn" title="复制代码" disabled={disabled} onClick={() => void copy(textContent(children).replace(/\n$/, ''))}><Icon name="copy"/></button></header><pre>{children}</pre></div>;
 }
 const components: Components = {
   strong: ({ children }) => <strong>{children as ReactNode}</strong>,

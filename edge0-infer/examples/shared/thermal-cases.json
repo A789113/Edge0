@@ -5,8 +5,8 @@
       "state": "nominal"
     },
     "expected": {
-      "label": "Normal",
-      "description": "No heat slowdown",
+      "label": "正常",
+      "description": "没有因发热降速",
       "tone": "ok"
     }
   },
@@ -16,8 +16,8 @@
       "state": "fair"
     },
     "expected": {
-      "label": "Warm",
-      "description": "Little or no slowdown",
+      "label": "偏热",
+      "description": "降速很轻或没有",
       "tone": "warn"
     }
   },
@@ -27,8 +27,8 @@
       "state": "serious"
     },
     "expected": {
-      "label": "Throttled",
-      "description": "Running slower to cool down",
+      "label": "已降速",
+      "description": "正减速散热",
       "tone": "warn"
     }
   },
@@ -38,8 +38,8 @@
       "state": "critical"
     },
     "expected": {
-      "label": "Too hot",
-      "description": "Heavily slowed; let it cool",
+      "label": "过热",
+      "description": "严重降速，需要散热",
       "tone": "error"
     }
   },
@@ -49,8 +49,8 @@
       "state": "none"
     },
     "expected": {
-      "label": "Normal",
-      "description": "No heat slowdown",
+      "label": "正常",
+      "description": "没有因发热降速",
       "tone": "ok"
     }
   },
@@ -60,8 +60,8 @@
       "state": "light"
     },
     "expected": {
-      "label": "Warm",
-      "description": "Little or no slowdown",
+      "label": "偏热",
+      "description": "降速很轻或没有",
       "tone": "warn"
     }
   },
@@ -71,8 +71,8 @@
       "state": "moderate"
     },
     "expected": {
-      "label": "Throttled",
-      "description": "Running slower to cool down",
+      "label": "已降速",
+      "description": "正减速散热",
       "tone": "warn"
     }
   },
@@ -82,8 +82,8 @@
       "state": "severe"
     },
     "expected": {
-      "label": "Throttled",
-      "description": "Running slower to cool down",
+      "label": "已降速",
+      "description": "正减速散热",
       "tone": "warn"
     }
   },
@@ -93,8 +93,8 @@
       "state": "critical"
     },
     "expected": {
-      "label": "Too hot",
-      "description": "Heavily slowed; let it cool",
+      "label": "过热",
+      "description": "严重降速，需要散热",
       "tone": "error"
     }
   },
@@ -104,8 +104,8 @@
       "state": "emergency"
     },
     "expected": {
-      "label": "Shutting down",
-      "description": "System is about to shut parts down",
+      "label": "即将关机",
+      "description": "系统准备关闭部分组件",
       "tone": "error"
     }
   },
@@ -115,8 +115,8 @@
       "state": "shutdown"
     },
     "expected": {
-      "label": "Shutting down",
-      "description": "System is about to shut parts down",
+      "label": "即将关机",
+      "description": "系统准备关闭部分组件",
       "tone": "error"
     }
   },
@@ -127,7 +127,7 @@
     },
     "expected": {
       "label": "hot",
-      "description": "Unrecognized state",
+      "description": "未知状态",
       "tone": "warn"
     }
   }

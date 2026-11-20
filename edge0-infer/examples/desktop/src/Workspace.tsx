@@ -11,19 +11,19 @@ export function ThinkingBlock({ enabled, content, expanded = true, setExpanded }
 }) {
   if (!enabled || !content) return null;
   return <details className="reasoning-block" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
-    <summary>Thinking</summary><Markdown>{content}</Markdown>
+    <summary>思考过程</summary><Markdown>{content}</Markdown>
   </details>;
 }
 export function ThinkingSwitch({ checked, disabled, supported, locked, change }: {
   checked: boolean; disabled: boolean; supported: boolean; locked: boolean; change: (value: boolean) => void;
 }) {
   return <div className={`thinking-control${disabled ? ' is-locked' : ''}`}>
-    <button className="thinking-switch" type="button" role="switch" aria-label="Thinking" aria-checked={checked} disabled={disabled} onClick={() => { if (!disabled) change(!checked); }}>
-      <span className={`switch-track ${checked ? 'is-on' : 'is-off'}`} aria-hidden="true"><span className="switch-thumb"/></span><span>Thinking{!supported && ' unavailable'}</span><span className="switch-state">{checked ? 'On' : 'Off'}</span>
+    <button className="thinking-switch" type="button" role="switch" aria-label="思考" aria-checked={checked} disabled={disabled} onClick={() => { if (!disabled) change(!checked); }}>
+      <span className={`switch-track ${checked ? 'is-on' : 'is-off'}`} aria-hidden="true"><span className="switch-thumb"/></span><span>思考{!supported && '（此模型不支持）'}</span><span className="switch-state">{checked ? '开' : '关'}</span>
     </button>
-    {locked && <span className="thinking-note">Applies to a new chat</span>}
+    {locked && <span className="thinking-note">只对新对话生效</span>}
   </div>;
 }
 export function DeleteConversation({ disabled, onDelete }: { disabled: boolean; onDelete: () => void }) {
-  return <button className="icon-btn delete" title="Delete conversation" aria-label="Delete conversation" disabled={disabled} onClick={onDelete}><Icon name="trash"/></button>;
+  return <button className="icon-btn delete" title="删除这个对话" aria-label="删除这个对话" disabled={disabled} onClick={onDelete}><Icon name="trash"/></button>;
 }

@@ -27,14 +27,14 @@ impl Store {
         }
     }
     pub fn list(&self) -> Result<Vec<Archive>, String> {
-        let _guard = self.lock.lock().map_err(|_| "Storage lock failed")?;
+        let _guard = self.lock.lock().map_err(|_| "存储锁定失败")?;
         let directory = self.data.join("conversations");
         if !directory.exists() {
             return Ok(vec![]);
         }
         let mut archives = vec![];
-        for entry in fs::read_dir(directory).map_err(|_| "Cannot list conversations")? {
-            let path = entry.map_err(|_| "Cannot read conversation entry")?.path();
+        for entry in fs::read_dir(directory).map_err(|_| "无法列出对话")? {
+            let path = entry.map_err(|_| "无法读取对话条目")?.path();
             if path.extension().and_then(|s| s.to_str()) != Some("json") {
                 continue;
             }
@@ -46,9 +46,9 @@ impl Store {
                 continue;
             };
             let result = fs::read(&path)
-                .map_err(|_| "Cannot read archive")
+                .map_err(|_| "无法读取存档")
                 .and_then(|bytes| {
-                    serde_json::from_slice::<Value>(&bytes).map_err(|_| "Invalid archive JSON")
+                    serde_json::from_slice::<Value>(&bytes).map_err(|_| "存档 JSON 无效")
                 })
                 .and_then(|value| {
                     validate_conversation(id, &value)?;
@@ -70,41 +70,41 @@ impl Store {
         Ok(archives)
     }
     pub fn save(&self, id: &str, conversation: &Value) -> Result<(), String> {
-        let _guard = self.lock.lock().map_err(|_| "Storage lock failed")?;
+        let _guard = self.lock.lock().map_err(|_| "存储锁定失败")?;
         validate_conversation(id, conversation)?;
         let path = self.data.join("conversations").join(format!("{id}.json"));
         if path.exists() {
             let old: Value = serde_json::from_slice(
-                &fs::read(&path).map_err(|_| "Cannot read existing archive")?,
+                &fs::read(&path).map_err(|_| "无法读取已有存档")?,
             )
-            .map_err(|_| "Cannot overwrite an unreadable archive")?;
-            validate_conversation(id, &old).map_err(|_| "Cannot overwrite a damaged archive")?;
+            .map_err(|_| "无法覆盖一个不可读的存档")?;
+            validate_conversation(id, &old).map_err(|_| "无法覆盖一个已损坏的存档")?;
         }
         atomic_json(&path, conversation)
     }
     pub fn delete(&self, id: &str) -> Result<(), String> {
-        let _guard = self.lock.lock().map_err(|_| "Storage lock failed")?;
+        let _guard = self.lock.lock().map_err(|_| "存储锁定失败")?;
         if !valid_id(id) {
-            return Err("Invalid conversation identifier".into());
+            return Err("对话标识无效".into());
         }
         let path = self.data.join("conversations").join(format!("{id}.json"));
         if path.exists() {
-            fs::remove_file(path).map_err(|_| "Cannot delete conversation")?;
+            fs::remove_file(path).map_err(|_| "无法删除对话")?;
         }
         Ok(())
     }
     pub fn load_totals(&self) -> Result<Option<Value>, String> {
-        let _guard = self.lock.lock().map_err(|_| "Storage lock failed")?;
+        let _guard = self.lock.lock().map_err(|_| "存储锁定失败")?;
         let path = self.data.join("totals.json");
         if !path.exists() {
             return Ok(None);
         }
-        serde_json::from_slice(&fs::read(path).map_err(|_| "Cannot read totals")?)
+        serde_json::from_slice(&fs::read(path).map_err(|_| "无法读取统计")?)
             .map(Some)
-            .map_err(|_| "Cannot read saved totals".into())
+            .map_err(|_| "无法读取已保存的统计".into())
     }
     pub fn save_totals(&self, totals: &Value) -> Result<(), String> {
-        let _guard = self.lock.lock().map_err(|_| "Storage lock failed")?;
+        let _guard = self.lock.lock().map_err(|_| "存储锁定失败")?;
         atomic_json(&self.data.join("totals.json"), totals)
     }
 }
@@ -140,21 +140,21 @@ fn validate_conversation(id: &str, value: &Value) -> Result<(), &'static str> {
                 })
             })
     {
-        return Err("Invalid conversation archive");
+        return Err("对话存档无效");
     }
     Ok(())
 }
 pub fn atomic_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
-    let parent = path.parent().ok_or("Invalid storage location")?;
-    fs::create_dir_all(parent).map_err(|_| "Cannot create storage directory")?;
+    let parent = path.parent().ok_or("存储位置无效")?;
+    fs::create_dir_all(parent).map_err(|_| "无法创建存储目录")?;
     let temporary = path.with_extension("new");
-    let mut file = fs::File::create(&temporary).map_err(|_| "Cannot create temporary archive")?;
-    file.write_all(&serde_json::to_vec_pretty(value).map_err(|_| "Cannot encode archive")?)
-        .map_err(|_| "Cannot write archive")?;
-    file.sync_all().map_err(|_| "Cannot flush archive")?;
+    let mut file = fs::File::create(&temporary).map_err(|_| "无法创建临时存档")?;
+    file.write_all(&serde_json::to_vec_pretty(value).map_err(|_| "无法编码存档")?)
+        .map_err(|_| "无法写入存档")?;
+    file.sync_all().map_err(|_| "无法刷新存档到磁盘")?;
     drop(file);
     // std::fs::rename replaces the destination atomically on supported desktop filesystems.
-    fs::rename(&temporary, path).map_err(|_| "Cannot replace archive".into())
+    fs::rename(&temporary, path).map_err(|_| "无法替换存档".into())
 }
 pub fn valid_token(token: &str) -> bool {
     token.len() == 49
@@ -165,9 +165,9 @@ pub fn valid_token(token: &str) -> bool {
 }
 pub fn write_token(directory: &Path, token: &str) -> Result<(), String> {
     if !valid_token(token) {
-        return Err("Invalid API token format".into());
+        return Err("API 令牌格式无效".into());
     }
-    fs::create_dir_all(directory).map_err(|_| "Cannot create token directory")?;
+    fs::create_dir_all(directory).map_err(|_| "无法创建令牌目录")?;
     let path = directory.join("api-token.new");
     let mut options = fs::OpenOptions::new();
     options.write(true).create(true).truncate(true);
@@ -177,26 +177,26 @@ pub fn write_token(directory: &Path, token: &str) -> Result<(), String> {
         options.mode(0o600);
         if path.exists() {
             fs::set_permissions(&path, fs::Permissions::from_mode(0o600))
-                .map_err(|_| "Cannot secure token file")?;
+                .map_err(|_| "无法保护令牌文件")?;
         }
     }
     let mut file = options
         .open(&path)
-        .map_err(|_| "Cannot create token file")?;
+        .map_err(|_| "无法创建令牌文件")?;
     file.write_all(token.as_bytes())
         .and_then(|_| file.sync_all())
-        .map_err(|_| "Cannot write token file")?;
+        .map_err(|_| "无法写入令牌文件")?;
     drop(file);
-    fs::rename(path, directory.join("api-token")).map_err(|_| "Cannot replace token file".into())
+    fs::rename(path, directory.join("api-token")).map_err(|_| "无法替换令牌文件".into())
 }
 pub fn read_token(directory: &Path) -> Result<Option<String>, String> {
     let path = directory.join("api-token");
     if !path.exists() {
         return Ok(None);
     }
-    let token = fs::read_to_string(path).map_err(|_| "Cannot read API token")?;
+    let token = fs::read_to_string(path).map_err(|_| "无法读取 API 令牌")?;
     if !valid_token(&token) {
-        return Err("Invalid saved API token".into());
+        return Err("已保存的 API 令牌无效".into());
     }
     Ok(Some(token))
 }

@@ -22,7 +22,7 @@ export function parseInfo(text: string): Info {
     return match ? [{ backend: match[1], name: match[2], description: JSON.parse('"' + match[3] + '"') as string }] : [];
   }); return { version: read('engine.version'), commit: read('engine.source_commit'), devices };
 }
-export const sourceLabel = (source: string, platform = globalThis.navigator?.platform ?? '') => /^(127\.|::1$|::ffff:127\.)/.test(source) ? platform.toLowerCase().includes('mac') ? 'this Mac' : 'this PC' : source;
+export const sourceLabel = (source: string, platform = globalThis.navigator?.platform ?? '') => /^(127\.|::1$|::ffff:127\.)/.test(source) ? platform.toLowerCase().includes('mac') ? '这台 Mac' : '这台 PC' : source;
 
 export function deviceLabel(name: string, devices?: EngineStatus['engine']['devices']): string {
   const backend = (devices ?? []).find(device => device.name === name || device.backend.toLowerCase() === name.toLowerCase())?.backend ?? name;
@@ -35,9 +35,9 @@ export function deviceLabel(name: string, devices?: EngineStatus['engine']['devi
 }
 export function stopReason(reason?: string): string {
   switch (reason) {
-    case 'end_of_generation': return 'stopped at end of answer';
-    case 'length': return 'stopped at length limit';
-    case 'cancelled': return 'stopped';
+    case 'end_of_generation': return '已正常完成回答';
+    case 'length': return '已达到长度上限';
+    case 'cancelled': return '已停止';
     default: return reason ?? '';
   }
 }

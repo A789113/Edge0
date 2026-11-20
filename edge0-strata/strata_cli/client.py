@@ -45,20 +45,20 @@ class ClientError(Exception):
 def server_url(raw: str) -> str:
     """Require a server root and prevent credential/path ambiguity."""
     if not isinstance(raw, str):
-        raise ValueError("URL must be an http(s) server root")
+        raise ValueError("URL 必须是 http(s) 服务器根地址")
     u = urllib.parse.urlsplit(raw)
     if u.scheme not in ("http", "https") or not u.hostname or "@" in u.netloc:
-        raise ValueError("URL must be an http(s) server root without embedded credentials")
+        raise ValueError("URL 必须是 http(s) 服务器根地址，且不能内嵌凭据")
     if u.path not in ("", "/") or u.query or u.fragment:
-        raise ValueError("URL must be the server root, without a path, query or fragment")
+        raise ValueError("URL 必须是服务器根地址，不带路径、查询或片段")
     try:
         port = u.port
     except ValueError as e:
-        raise ValueError("invalid server port") from e
+        raise ValueError("服务器端口无效") from e
     host = u.hostname.lower()
     local = host in ("localhost", "127.0.0.1", "::1")
     if u.scheme != "https" and not local:
-        raise ValueError("remote monitoring requires HTTPS or a local SSH tunnel")
+        raise ValueError("远程监控需要 HTTPS 或本地 SSH 隧道")
     authority = f"[{host}]" if ":" in host else host
     return f"{u.scheme}://{authority}{':' + str(port) if port is not None else ''}"
 
@@ -66,13 +66,13 @@ def server_url(raw: str) -> str:
 def url_prefix(value: str) -> str:
     """A saved reverse-proxy path, never an alternate origin or query."""
     if not isinstance(value, str) or len(value) > 256:
-        raise ValueError("connection prefix must be a short URL path")
+        raise ValueError("连接前缀必须是简短的 URL 路径")
     if value in ("", "/"):
         return ""
     parts = value.split("/")
     if parts[0] or len(parts) < 2 or any(not re.fullmatch(r"[A-Za-z0-9._~-]+", part) or part in (".", "..")
                                                for part in parts[1:]):
-        raise ValueError("connection prefix must use simple /path segments without traversal")
+        raise ValueError("连接前缀只能用简单的 /path 段，不允许路径穿越")
     return value
 
 
@@ -92,7 +92,7 @@ class Endpoint:
         object.__setattr__(self, "root", server_url(self.root))
         object.__setattr__(self, "prefix", url_prefix(self.prefix))
         if not 0 < self.timeout <= 30:
-            raise ValueError("timeout must be between 0 and 30 seconds")
+            raise ValueError("超时必须在 0 到 30 秒之间")
 
     @property
     def base_url(self) -> str:
@@ -100,7 +100,7 @@ class Endpoint:
 
     def get(self, path: str) -> dict[str, Any]:
         if path not in ("/v1/telemetry", "/v1/status", "/metrics", "/health"):
-            raise ValueError("endpoint is not part of the read-only telemetry contract")
+            raise ValueError("该端点不在只读遥测协议范围内")
         headers = {"Accept": "application/json", "User-Agent": "Strata-Terminal/0.1"}
         if self.credential:
             headers["Authorization"] = "Bearer " + self.credential
@@ -110,25 +110,25 @@ class Endpoint:
             with opener.open(req, timeout=self.timeout) as response:
                 content_type = response.headers.get("Content-Type", "")
                 if "application/json" not in content_type:
-                    raise ClientError("server did not return JSON telemetry")
+                    raise ClientError("服务器未返回 JSON 遥测数据")
                 body = response.read(MAX_BODY + 1)
                 if len(body) > MAX_BODY:
-                    raise ClientError("telemetry response exceeds the 2 MiB limit")
+                    raise ClientError("遥测响应超过 2 MiB 上限")
         except urllib.error.HTTPError as e:
             if e.code in (401, 403):
-                raise ClientError("telemetry authentication or permission failed", 4, http_status=e.code) from e
+                raise ClientError("遥测认证或权限校验失败", 4, http_status=e.code) from e
             if e.code in (301, 302, 303, 307, 308):
-                raise ClientError("telemetry endpoint redirected; use the final server root",
+                raise ClientError("遥测端点发生了重定向，请使用最终的服务器根地址",
                                   http_status=e.code) from e
-            raise ClientError(f"telemetry request failed: HTTP {e.code}", http_status=e.code) from e
+            raise ClientError(f"遥测请求失败：HTTP {e.code}", http_status=e.code) from e
         except (urllib.error.URLError, TimeoutError, socket.timeout, OSError) as e:
-            raise ClientError(f"cannot reach Strata server: {type(e).__name__}") from e
+            raise ClientError(f"无法连接 Strata 服务器：{type(e).__name__}") from e
         try:
             data = json.loads(body)
         except (ValueError, UnicodeDecodeError, RecursionError) as e:
-            raise ClientError("server returned malformed JSON telemetry") from e
+            raise ClientError("服务器返回了格式错误的 JSON 遥测数据") from e
         if not isinstance(data, dict):
-            raise ClientError("server returned a non-object telemetry response")
+            raise ClientError("服务器返回的遥测响应不是对象")
         return data
 
     def snapshot(self) -> dict[str, Any]:
@@ -140,7 +140,7 @@ class Endpoint:
                 raise
         else:
             if snapshot.get("schema_version") != 1:
-                raise ClientError("incompatible telemetry schema version", 5)
+                raise ClientError("遥测数据格式版本不兼容", 5)
             return sanitize_telemetry(snapshot)
         try:
             metrics = self.get("/metrics")

@@ -1,0 +1,211 @@
+# .github/workflows/build-zh.yml
+# 简体中文定制版打包流程
+#
+# 在 windows-latest（微软官方 Windows 机器）上原生编译整个 Edge0：
+#   Edge0 Chat.exe（Tauri 桌面应用）
+#   edge0-infer.exe（推理引擎，MSVC + Vulkan）
+#   edge0-strata\（strata.exe + Python 运行时 + serve 网页）
+# 产出 edge0-chat-<version>-windows-x64.zip，布局与官方发布一致，全部中文界面。
+#
+# 依据：官方打包脚本 scripts/package/windows/package.ps1 的三个阶段
+#   fetch（联网拉依赖）→ build（离线编译打包）→ verify（自检）
+# 本 workflow 复用该脚本，只额外装它需要的 CUDA Toolkit 和 Vulkan SDK。
+
+name: 构建中文版 Edge0 Chat
+
+# on 加引号：避免 YAML 1.1 把裸 on 解析成布尔值（GitHub 官方推荐写法）
+'on':
+  # 手动触发：在 Actions 页面点 Run workflow
+  workflow_dispatch:
+  # 推送到主分支也自动构建（可注释掉只留手动）
+  push:
+    branches: [ main ]
+
+# 免费额度单 job 上限 6 小时；整个构建约 2-3 小时
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Windows x64 原生编译打包
+    runs-on: windows-latest
+    timeout-minutes: 330
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # ── 1. 基础工具（runner 预装大部分，这里补齐版本）─────────────
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 安装 Rust（MSVC 目标）
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: 安装 Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # LLVM（clang-cl + lld-link）：ggml 在 Windows 上需要它，runner 不带。
+      # 用 winget 装官方 LLVM。
+      - name: 安装 LLVM（clang-cl / lld-link）
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          winget install --id LLVM.LLVM --silent --accept-package-agreements --accept-source-agreements
+          # LLVM 默认装到 C:\Program Files\LLVM\bin，winget 一般已加 PATH，刷新当前会话
+          $llvm = 'C:\Program Files\LLVM\bin'
+          if (Test-Path $llvm) { "$llvm" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append }
+          Write-Host "LLVM 安装完成"
+
+      # ── 2. 官方脚本要求但 runner 没预装的两样 ────────────────────
+      # Vulkan SDK（package.ps1 要求 1.4.363.1 或兼容版本）
+      - name: 安装 Vulkan SDK
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://sdk.lunarg.com/sdk/download/1.4.363.1/windows/vulkansdk-windows-X64-1.4.363.1.exe'
+          $installer = "$env:TEMP\vulkan-sdk.exe"
+          Write-Host "下载 Vulkan SDK..."
+          Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
+          Write-Host "静默安装 Vulkan SDK..."
+          Start-Process -FilePath $installer -ArgumentList '--accept-licenses','--default-answer','--confirm-command','install' -Wait -NoNewWindow
+          # package.ps1 需要 VULKAN_SDK 和 glslc 在 PATH
+          $sdkRoot = 'C:\VulkanSDK\1.4.363.1'
+          if (-not (Test-Path $sdkRoot)) { $sdkRoot = (Get-ChildItem 'C:\VulkanSDK' -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName }
+          Write-Host "VULKAN_SDK=$sdkRoot"
+          "VULKAN_SDK=$sdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$sdkRoot\Bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      # CUDA Toolkit 13（strata 的 CUDA 内核必须；x64 用 75;86;89;120 架构）
+      - name: 安装 CUDA Toolkit 13
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # 官方 network installer，静默装 nvcc + 必要组件
+          $url = 'https://developer.download.nvidia.com/compute/cuda/13.0.0/network_installers/cuda_13.0.0_windows_network.exe'
+          $installer = "$env:TEMP\cuda-installer.exe"
+          Write-Host "下载 CUDA network installer..."
+          Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
+          Write-Host "静默安装 CUDA（nvcc、cudart、visual_studio_integration）..."
+          Start-Process -FilePath $installer -ArgumentList '-s','nvcc_13.0','cudart_13.0','visual_studio_integration_13.0' -Wait -NoNewWindow
+          $cudaRoot = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0'
+          if (-not (Test-Path "$cudaRoot\bin\nvcc.exe")) {
+            $cudaRoot = (Get-ChildItem 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA' -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
+          }
+          Write-Host "CUDA_PATH=$cudaRoot"
+          "CUDA_PATH=$cudaRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$cudaRoot\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      # ── 2.5 构建前检查工具链，缺了立刻报，不编到一半才炸 ──────────
+      - name: 构建前检查工具链
+        shell: powershell
+        run: |
+          $tools = @{
+            'cl.exe'        = 'MSVC C++ 编译器（VS 2022 Build Tools，runner 预装）'
+            'clang-cl.exe'  = 'LLVM 编译器'
+            'lld-link.exe'  = 'LLVM 链接器'
+            'nvcc.exe'      = 'CUDA 编译器'
+            'glslc.exe'     = 'Vulkan 着色器编译器'
+            'cmake.exe'     = 'CMake'
+            'ninja.exe'     = 'Ninja'
+            'node.exe'      = 'Node.js'
+            'npm.cmd'       = 'npm'
+            'cargo.exe'     = 'Rust Cargo'
+            'python.exe'    = 'Python'
+            'curl.exe'      = 'curl'
+            'tar.exe'       = 'tar'
+            'git.exe'       = 'Git'
+          }
+          $missing = @()
+          foreach ($t in $tools.Keys | Sort-Object) {
+            $found = Get-Command $t -ErrorAction SilentlyContinue
+            if ($found) { Write-Host ("  ✅ {0,-14} {1}" -f $t, $found.Source) }
+            else { Write-Host ("  ❌ {0,-14} 未找到：{1}" -f $t, $tools[$t]); $missing += $t }
+          }
+          if ($missing.Count) {
+            Write-Host "`n缺少 $($missing.Count) 个工具，构建无法继续："
+            $missing | ForEach-Object { Write-Host "  - $_" }
+            throw "工具链不完整"
+          }
+          Write-Host "`n✅ 工具链完整，可以构建"
+
+      # ── 3. 用官方脚本打包 ─────────────────────────────────────────
+      # fetch：联网把这个 commit 的所有依赖拉到缓存
+      - name: fetch 依赖
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          powershell -ExecutionPolicy Bypass -File .\scripts\package\windows\package.ps1 fetch -Cache C:\edge0-cache -Commit ${{ github.sha }}
+
+      # build：离线编译 + 打包成 zip
+      - name: build 打包
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          powershell -ExecutionPolicy Bypass -File .\scripts\package\windows\package.ps1 build -Cache C:\edge0-cache -Out C:\edge0-out -Commit ${{ github.sha }}
+
+      # verify：自检包结构和二进制架构
+      - name: verify 自检
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Get-ChildItem 'C:\edge0-out\edge0-chat-*-windows-x64.zip' | Select-Object -First 1
+          powershell -ExecutionPolicy Bypass -File .\scripts\package\windows\package.ps1 verify -Zip $zip.FullName
+
+      # ── 4. 按你的要求删除产物里的声明/协议文件 ───────────────────
+      # 复刻你 D:\AI 的现状：打包层不带 LICENSE/NOTICE/THIRD-PARTY-NOTICES/user-README
+      - name: 清理产物中的声明协议文件
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Get-ChildItem 'C:\edge0-out\edge0-chat-*-windows-x64.zip' | Select-Object -First 1
+          $tmp = 'C:\edge0-clean'
+          if (Test-Path $tmp) { Remove-Item -Recurse -Force $tmp }
+          Expand-Archive -Path $zip.FullName -DestinationPath $tmp
+          # 删打包层的声明/协议/用户说明文件
+          $patterns = @('LICENSE*','LICENCE*','NOTICE*','THIRD-PARTY*','OFL.txt','user-README*','COPYING*')
+          $removed = 0
+          Get-ChildItem -Path $tmp -Recurse -Force -File | Where-Object {
+            $name = $_.Name
+            ($patterns | Where-Object { $name -like $_ }) -and $name -notmatch '\.(exe|dll|pyd|json|py|js|ts)$'
+          } | ForEach-Object {
+            Write-Host "删除: $($_.FullName.Substring($tmp.Length))"
+            Remove-Item -Force $_.FullName; $removed++
+          }
+          # Python wheel 的 licenses 目录也清掉
+          Get-ChildItem -Path $tmp -Recurse -Force -Directory -Filter 'licenses' | ForEach-Object {
+            Write-Host "删除目录: $($_.FullName.Substring($tmp.Length))"
+            Remove-Item -Recurse -Force $_.FullName; $removed++
+          }
+          Write-Host "共删除 $removed 项声明/协议文件"
+          # 重新打包（保持原名）
+          Remove-Item -Force $zip.FullName
+          Compress-Archive -Path "$tmp\*" -DestinationPath $zip.FullName -CompressionLevel Optimal
+          # 重算 sha256
+          $hash = (Get-FileHash -Algorithm SHA256 $zip.FullName).Hash.ToLower()
+          Set-Content -Path "$($zip.FullName).sha256" -Value "$hash  $($zip.Name)"
+
+      # ── 5. 上传产物 ──────────────────────────────────────────────
+      - name: 上传打包产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: edge0-chat-zh-windows-x64
+          path: |
+            C:\edge0-out\edge0-chat-*-windows-x64.zip
+            C:\edge0-out\edge0-chat-*-windows-x64.zip.sha256
+          retention-days: 14
+
+      # 构建日志（失败排查用）
+      - name: 上传构建日志
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: C:\edge0-out\logs-*
+          retention-days: 7

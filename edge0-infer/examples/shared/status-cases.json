@@ -237,7 +237,7 @@
     "input": {
       "value": 0
     },
-    "expected": "0.0 s"
+    "expected": "0.0 秒"
   },
   {
     "name": "duration_subsecond",
@@ -245,7 +245,7 @@
     "input": {
       "value": 0.006098042
     },
-    "expected": "0.0 s"
+    "expected": "0.0 秒"
   },
   {
     "name": "duration_seconds",
@@ -253,7 +253,7 @@
     "input": {
       "value": 3.47
     },
-    "expected": "3.5 s"
+    "expected": "3.5 秒"
   },
   {
     "name": "duration_half_up",
@@ -261,7 +261,7 @@
     "input": {
       "value": 2.25
     },
-    "expected": "2.3 s"
+    "expected": "2.3 秒"
   },
   {
     "name": "duration_just_below_minute",
@@ -269,7 +269,7 @@
     "input": {
       "value": 59.94
     },
-    "expected": "59.9 s"
+    "expected": "59.9 秒"
   },
   {
     "name": "duration_rounds_to_minute",
@@ -277,7 +277,7 @@
     "input": {
       "value": 59.96
     },
-    "expected": "1 min 0 s"
+    "expected": "1 分 0 秒"
   },
   {
     "name": "duration_minutes",
@@ -285,7 +285,7 @@
     "input": {
       "value": 404.4
     },
-    "expected": "6 min 44 s"
+    "expected": "6 分 44 秒"
   },
   {
     "name": "duration_minutes_half_up",
@@ -293,7 +293,7 @@
     "input": {
       "value": 404.5
     },
-    "expected": "6 min 45 s"
+    "expected": "6 分 45 秒"
   },
   {
     "name": "duration_just_below_hour",
@@ -301,7 +301,7 @@
     "input": {
       "value": 3599.4
     },
-    "expected": "59 min 59 s"
+    "expected": "59 分 59 秒"
   },
   {
     "name": "duration_hour",
@@ -309,7 +309,7 @@
     "input": {
       "value": 3600
     },
-    "expected": "1 h 0 min"
+    "expected": "1 小时 0 分"
   },
   {
     "name": "duration_hours",
@@ -317,7 +317,7 @@
     "input": {
       "value": 8040.0
     },
-    "expected": "2 h 14 min"
+    "expected": "2 小时 14 分"
   },
   {
     "name": "duration_many_hours",
@@ -325,7 +325,7 @@
     "input": {
       "value": 90061
     },
-    "expected": "25 h 1 min"
+    "expected": "25 小时 1 分"
   },
   {
     "name": "duration_missing",

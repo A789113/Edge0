@@ -1562,7 +1562,7 @@ $("lang").onchange = async () => {
 
 // ------------------------------------------------------------------ start
 async function start() {
-  await StrataI18n.setLanguage(urlLang || store.get("lang", "en"));
+  await StrataI18n.setLanguage(urlLang || store.get("lang", "zh"));
   $("lang").value = StrataI18n.lang;
   renderEmptyChat();
   initChats();
