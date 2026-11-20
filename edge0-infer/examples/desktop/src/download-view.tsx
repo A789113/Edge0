@@ -69,7 +69,7 @@ export function DownloadDialog({ model, job, platform, resume, measuring, starti
           const ms = id === 'huggingface' ? report.huggingface_ms : report.modelscope_ms;
           return <label key={id} className={`src${source === id ? ' on' : ''}`}><input type="radio" name="src" checked={source === id} onChange={() => onSource(id)}/><span><b>{sourceLabel(id)}</b><small>{sourceHost(id)}</small></span><span className={`ms${measuring ? ' pending' : ''}`}>{measuring ? <span className="spin"/> : ms == null ? '无法访问' : <>{ms} 毫秒{id === fastest && <> · <span className="tag ok">最快</span></>}</>}</span></label>;
         })}</div>
-        <div className="src-foot">{measuring ? '正在测量响应时间…' : '按刚才的响应时间自动选择；想用另一个就点它。'}<span className="sp"/>{!measuring && <button type="button" onClick={onMeasure}>重新测速</button>}</div>
+        <div className="src-foot">{measuring ? '正在测量响应时间…' : '按刚才的响应时间自动选择，点另一个可切换。'}<span className="sp"/>{!measuring && <button type="button" onClick={onMeasure}>重新测速</button>}</div>
       </div>
       <div className="field last"><label>保存到</label>
         <div className="path-row"><input className="input" value={directory} readOnly disabled={resume}/><button className="btn" type="button" disabled={resume} onClick={onChangeDirectory}><Icon name="folder"/>更改…</button></div>
