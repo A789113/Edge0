@@ -253,11 +253,15 @@ jobs:
           #   with -ccbin (...)
           # A junction gives the same MSVC tree a space-free path, so no 8.3
           # rewriting happens and both sides are identical.
-          $msvcRoot = Split-Path (Split-Path (Split-Path (Get-Command cl).Source -Parent) -Parent) -Parent
-          # (Get-Command cl).Source = ...\MSVC\14.44.35207\bin\HostX64\x64\cl.exe
-          # three parents up = ...\MSVC\14.44.35207
-          $msvcRoot = Split-Path (Split-Path (Split-Path (Get-Command cl).Source -Parent) -Parent) -Parent
+          # (Get-Command cl).Source =
+          #   ...\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\cl.exe
+          # four parents up = ...\VC\Tools\MSVC\14.44.35207
+          $msvcRoot = (Get-Command cl).Source
+          foreach ($i in 1..4) { $msvcRoot = Split-Path $msvcRoot -Parent }
           Write-Host "MSVC root: $msvcRoot"
+          if (-not (Test-Path "$msvcRoot\bin\HostX64\x64\cl.exe")) {
+            throw "unexpected MSVC layout: $msvcRoot\bin\HostX64\x64\cl.exe not found"
+          }
 
           $link = 'C:\cl'
           if (Test-Path $link) { cmd /c rmdir "$link" 2>$null }
