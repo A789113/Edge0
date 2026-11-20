@@ -242,38 +242,42 @@ jobs:
             Write-Host "All tools present."
           }
 
-      - name: 准备无空格工具链路径
+      - name: 统一 CUDA 宿主编译器路径（8.3 短名）
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          # CMake rewrites space-containing paths to their 8.3 short form before
-          # handing them to nvcc as -ccbin. PATH keeps the long form, so nvcc
-          # compares two different strings and refuses:
-          #   nvcc fatal : cl.exe in PATH (...) is different than one specified
-          #   with -ccbin (...)
-          # A junction gives the same MSVC tree a space-free path, so no 8.3
-          # rewriting happens and both sides are identical.
-          # (Get-Command cl).Source =
-          #   ...\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\cl.exe
-          # four parents up = ...\VC\Tools\MSVC\14.44.35207
-          $msvcRoot = (Get-Command cl).Source
-          foreach ($i in 1..4) { $msvcRoot = Split-Path $msvcRoot -Parent }
-          Write-Host "MSVC root: $msvcRoot"
-          if (-not (Test-Path "$msvcRoot\bin\HostX64\x64\cl.exe")) {
-            throw "unexpected MSVC layout: $msvcRoot\bin\HostX64\x64\cl.exe not found"
+          # NVIDIA rule (developer forums): the cl.exe named by -ccbin and the
+          # first cl.exe on PATH must be THE SAME STRING, otherwise nvcc answers
+          #   "nvcc fatal : Host compiler targets unsupported OS"
+          # CMake converts a spaced path to its 8.3 short form for -ccbin, while
+          # PATH (set by vcvars) keeps the long form, so the two never match.
+          # Fix: compute the 8.3 short form once, then make BOTH sides use it.
+          $clLong = (Get-Command cl).Source
+          Write-Host "cl (long) : $clLong"
+          $binLong = Split-Path $clLong -Parent
+          $shortBin = cmd /c "for %I in (`"$binLong`") do @echo %~sI"
+          $shortBin = $shortBin.Trim()
+          Write-Host "cl bin (8.3): $shortBin"
+          if (-not $shortBin -or -not (Test-Path "$shortBin\cl.exe")) {
+            throw "cannot resolve 8.3 name for $binLong (got '$shortBin')"
           }
 
-          $link = 'C:\cl'
-          if (Test-Path $link) { cmd /c rmdir "$link" 2>$null }
-          cmd /c mklink /J "$link" "$msvcRoot" | Out-Null
-          if (-not (Test-Path "$link\bin\HostX64\x64\cl.exe")) {
-            throw "junction failed: $link\bin\HostX64\x64\cl.exe missing"
-          }
-          Write-Host "junction OK: $link -> $msvcRoot"
-          $shortBin = "$link\bin\HostX64\x64"
+          # Make sure the short directory is what PATH resolves cl.exe from:
+          # drop every long MSVC bin entry, then prepend the short form.
+          $parts = $env:PATH -split ';' | Where-Object { $_ -and ($_.TrimEnd('\') -ne $binLong.TrimEnd('\')) }
+          $env:PATH = $shortBin + ';' + ($parts -join ';')
+          "PATH=$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           $shortBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          "EDGE0_CL_NO_SPACE=$($shortBin.Replace([char]92,[char]47))/cl.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Host "no-space cl: $shortBin\cl.exe"
+
+          # Forward-slash form for CMake (backslashes would be eaten).
+          $clForCMake = ($shortBin.Replace([char]92, [char]47)) + '/cl.exe'
+          "EDGE0_CUDA_HOST_CL=$clForCMake" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "cl for CMake : $clForCMake"
+
+          # Prove both sides now agree
+          $fromPath = (Get-Command cl).Source
+          Write-Host "cl from PATH : $fromPath"
+          if ($fromPath -ne "$shortBin\cl.exe") { throw "PATH still resolves cl to $fromPath" }
 
       - name: 修补 package.ps1（CMake 3.31 吞反斜杠问题）
         shell: powershell
@@ -304,19 +308,17 @@ jobs:
             '-DCMAKE_CUDA_COMPILER=$((Get-Command nvcc).Source)',
             '-DCMAKE_CUDA_COMPILER=$((Get-Command nvcc).Source.Replace( [char]92, [char]47 ))')
 
-          # Fix 2: use the space-free junction as the CUDA host compiler
-          # (CMake would otherwise rewrite a spaced path to its 8.3 form and
-          # nvcc rejects the mismatch against PATH).
+          # Fix 2: hand CMake the SAME 8.3 short path that PATH now resolves to.
+          # (The previous junction approach failed because nvcc compares strings:
+          # a junction path never equals the real path on PATH.)
           $marker = 'Step "edge0-strata (CUDA $($C.CudaArchs))"'
           if (-not $text.Contains($marker)) { throw 'patch anchor "Step edge0-strata" not found' }
           $text = $text.Replace($marker,
-            $marker + "`r`n    if (`$env:EDGE0_CL_NO_SPACE) { `$cl = `$env:EDGE0_CL_NO_SPACE; Write-Host `"strata: cl = `$cl`" }")
+            $marker + "`r`n    if (`$env:EDGE0_CUDA_HOST_CL) { `$cl = `$env:EDGE0_CUDA_HOST_CL; Write-Host `"strata: cl = `$cl`" }")
 
-          # Fix 3: drop --use-local-env. With that flag nvcc trusts the inherited
-          # INCLUDE/LIB (still pointing at the long "Program Files" tree) instead
-          # of detecting the environment itself, and reports
-          #   "nvcc fatal : Host compiler targets unsupported OS"
-          # because the -ccbin path and those variables disagree.
+          # Fix 3: also drop --use-local-env. Not the root cause, but it makes
+          # nvcc trust the inherited INCLUDE/LIB instead of detecting them, which
+          # only adds ways for the two sides to disagree.
           if (-not $text.Contains('--use-local-env -D_WINDOWS')) {
             throw 'patch anchor "--use-local-env -D_WINDOWS" not found'
           }
