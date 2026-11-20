@@ -160,6 +160,40 @@ jobs:
         with:
           arch: x64
 
+      - name: 验证 nvcc 能配合 MSVC 工作
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          # Diagnose the CMake CUDA detection failure in isolation, so the real
+          # nvcc error is visible instead of CMake's bare "1".
+          Write-Host "=== nvcc version ==="
+          & nvcc --version 2>&1 | Out-String | ForEach-Object { Write-Host $_ }
+          Write-Host "=== cl version ==="
+          & cl 2>&1 | Out-String | Select-Object -First 3 | ForEach-Object { Write-Host $_ }
+          Write-Host "=== host compiler env ==="
+          Write-Host "CUDAHOSTCXX=$env:CUDAHOSTCXX"
+          Write-Host "CMAKE_CUDA_COMPILER=$env:CMAKE_CUDA_COMPILER"
+
+          # Compile a trivial CUDA translation unit.
+          $dir = "$env:RUNNER_TEMP\nvccprobe"
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          Set-Content -Path "$dir\t.cu" -Value "int main(){return 0;}" -Encoding ascii
+          Push-Location $dir
+          try {
+            Write-Host "=== compiling trivial .cu with nvcc ==="
+            $out = & nvcc -ccbin cl -arch=sm_75 -c t.cu -o t.obj 2>&1 | Out-String
+            Write-Host $out
+            Write-Host "nvcc exit: $LASTEXITCODE"
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "=== retry without -ccbin (let nvcc find cl) ==="
+              $out2 = & nvcc -arch=sm_75 -c t.cu -o t.obj 2>&1 | Out-String
+              Write-Host $out2
+              Write-Host "nvcc exit(2): $LASTEXITCODE"
+            }
+          } finally { Pop-Location }
+          # Non-fatal: this step only reports. package.ps1 does the real build.
+          Write-Host "=== nvcc probe done ==="
+
       - name: 构建前检查工具链
         shell: powershell
         run: |
