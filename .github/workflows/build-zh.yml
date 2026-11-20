@@ -27,7 +27,10 @@ permissions:
 jobs:
   build:
     name: Windows x64 原生编译打包
-    runs-on: windows-latest
+    # windows-2022 = VS 2022 (MSVC 14.3x), which CUDA 13.0 accepts.
+    # windows-latest now resolves to VS 18 / MSVC 14.52, which CUDA 13.0 rejects
+    # in crt/host_config.h with "unsupported Microsoft Visual Studio version".
+    runs-on: windows-2022
     timeout-minutes: 330
 
     steps:
