@@ -279,6 +279,28 @@ jobs:
           Write-Host "cl from PATH : $fromPath"
           if ($fromPath -ne "$shortBin\cl.exe") { throw "PATH still resolves cl to $fromPath" }
 
+          # Linker library search path: CMake links strata_kq.dll by calling
+          # link.exe directly, and passes cudadevrt.lib / cudart_static.lib as
+          # bare names. link.exe searches %LIB%, which msvc-dev-cmd filled with
+          # only MSVC and Windows SDK paths, so it fails with
+          #   LINK : fatal error LNK1181: cannot open input file 'cudadevrt.lib'
+          # Add the CUDA lib directory to LIB (must happen AFTER msvc-dev-cmd,
+          # which overwrites LIB wholesale).
+          $cudaRoot = $env:CUDA_PATH
+          if (-not $cudaRoot) { throw 'CUDA_PATH is not set' }
+          $cudaLib = Join-Path $cudaRoot 'lib\x64'
+          if (-not (Test-Path (Join-Path $cudaLib 'cudadevrt.lib'))) {
+            Write-Host "cudadevrt.lib not at $cudaLib; listing lib dir:"
+            Get-ChildItem (Join-Path $cudaRoot 'lib') -Recurse -Filter 'cudadevrt.lib' -ErrorAction SilentlyContinue |
+              Select-Object -First 5 | ForEach-Object { Write-Host ("  " + $_.FullName) }
+            throw "cudadevrt.lib not found under $cudaLib"
+          }
+          $env:LIB = $cudaLib + ';' + $env:LIB
+          "LIB=$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "LIB now starts with: $cudaLib"
+          Write-Host "cudadevrt.lib present: $(Test-Path (Join-Path $cudaLib 'cudadevrt.lib'))"
+          Write-Host "cudart_static.lib present: $(Test-Path (Join-Path $cudaLib 'cudart_static.lib'))"
+
       - name: 修补 package.ps1（CMake 3.31 吞反斜杠问题）
         shell: powershell
         run: |
