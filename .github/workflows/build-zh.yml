@@ -242,41 +242,89 @@ jobs:
             Write-Host "All tools present."
           }
 
+      - name: 准备无空格工具链路径
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # CMake rewrites space-containing paths to their 8.3 short form before
+          # handing them to nvcc as -ccbin. PATH keeps the long form, so nvcc
+          # compares two different strings and refuses:
+          #   nvcc fatal : cl.exe in PATH (...) is different than one specified
+          #   with -ccbin (...)
+          # A junction gives the same MSVC tree a space-free path, so no 8.3
+          # rewriting happens and both sides are identical.
+          $msvcRoot = Split-Path (Split-Path (Split-Path (Get-Command cl).Source -Parent) -Parent) -Parent
+          # (Get-Command cl).Source = ...\MSVC\14.44.35207\bin\HostX64\x64\cl.exe
+          # three parents up = ...\MSVC\14.44.35207
+          $msvcRoot = Split-Path (Split-Path (Split-Path (Get-Command cl).Source -Parent) -Parent) -Parent
+          Write-Host "MSVC root: $msvcRoot"
+
+          $link = 'C:\cl'
+          if (Test-Path $link) { cmd /c rmdir "$link" 2>$null }
+          cmd /c mklink /J "$link" "$msvcRoot" | Out-Null
+          if (-not (Test-Path "$link\bin\HostX64\x64\cl.exe")) {
+            throw "junction failed: $link\bin\HostX64\x64\cl.exe missing"
+          }
+          Write-Host "junction OK: $link -> $msvcRoot"
+          $shortBin = "$link\bin\HostX64\x64"
+          $shortBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "EDGE0_CL_NO_SPACE=$($shortBin.Replace([char]92,[char]47))/cl.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "no-space cl: $shortBin\cl.exe"
+
       - name: 修补 package.ps1（CMake 3.31 吞反斜杠问题）
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          # Real cause, from logs-x64/strata-configure.log:
-          #   nvcc fatal : Cannot find compiler
-          #   'C:Program FilesMicrosoft Visual Studio2022Enterprise...cl.exe' in PATH
-          # Backslashes vanish as the path travels command-line -> CMake -> nvcc.
-          # Fix: give CMake forward-slash paths. CMake and nvcc both accept them.
-          # This edits the CI working copy only; the repo file is untouched.
+          # History of this failure, straight from logs-x64/strata-configure.log:
+          #   1) backslashes vanished: -ccbin=C:Program Files...cl.exe
+          #      -> "nvcc fatal : Cannot find compiler ... in PATH"
+          #      fixed by passing forward-slash paths to CMake.
+          #   2) CMake then rewrote the host compiler to its 8.3 short name,
+          #      so -ccbin said C:/PROGRA~1/MICROS~2/... while PATH held the long
+          #      form, and nvcc compared the two strings:
+          #      "cl.exe in PATH (...) is different than one specified with -ccbin"
+          # Fix for (2): replace the long MSVC bin directory on PATH with the
+          # same 8.3 form CMake uses, so both sides match exactly.
           $ps1 = 'scripts\package\windows\package.ps1'
           $text = Get-Content -Raw -LiteralPath $ps1
           $orig = $text
 
-          # $cl = (Get-Command cl).Source
+          # Forward-slash paths (fix 1, keeps working)
           $text = $text.Replace(
             '$cl = (Get-Command cl).Source',
             '$cl = (Get-Command cl).Source.Replace( [char]92, [char]47 )')
-
-          # $cc = (Get-Command clang-cl).Source
           $text = $text.Replace(
             '$cc = (Get-Command clang-cl).Source',
             '$cc = (Get-Command clang-cl).Source.Replace( [char]92, [char]47 )')
-
-          # -DCMAKE_CUDA_COMPILER=$((Get-Command nvcc).Source)
           $text = $text.Replace(
             '-DCMAKE_CUDA_COMPILER=$((Get-Command nvcc).Source)',
             '-DCMAKE_CUDA_COMPILER=$((Get-Command nvcc).Source.Replace( [char]92, [char]47 ))')
+
+          # Fix 2: point the CUDA host compiler at the space-free junction path
+          # (C:\cl\bin\HostX64\x64\cl.exe). No spaces means CMake never rewrites
+          # it to an 8.3 short name, so nvcc's -ccbin check passes.
+          $marker = 'Step "edge0-strata (CUDA $($C.CudaArchs))"'
+          if (-not $text.Contains($marker)) { throw 'patch anchor for strata step not found' }
+
+          $injectLines = @(
+            'Step "edge0-strata (CUDA $($C.CudaArchs))"',
+            '# Use the space-free junction so nvcc matches -ccbin against PATH.',
+            'if ($env:EDGE0_CL_NO_SPACE -and (Test-Path ($env:EDGE0_CL_NO_SPACE.Replace([char]47,[char]92)))) {',
+            '  $cl = $env:EDGE0_CL_NO_SPACE',
+            '  Write-Host "strata: host compiler = $cl"',
+            '} else {',
+            '  Write-Host "strata: no space-free cl; keeping $cl"',
+            '}'
+          )
+          $inject = ($injectLines -join "`r`n    ")
+          $text = $text.Replace($marker, $inject)
 
           if ($text -eq $orig) { throw 'patch did not apply: package.ps1 layout changed' }
 
           [IO.File]::WriteAllText((Resolve-Path $ps1), $text, (New-Object Text.UTF8Encoding($false)))
           Write-Host 'patch applied. Patched lines:'
           Get-Content -LiteralPath $ps1 |
-            Select-String -Pattern '\$cl = |\$cc = |-DCMAKE_CUDA_COMPILER=' |
+            Select-String -Pattern '\$cl = |\$cc = |-DCMAKE_CUDA_COMPILER=|cl dir on PATH' |
             ForEach-Object { Write-Host ('  ' + $_.Line.Trim()) }
 
       - name: 拉取依赖
