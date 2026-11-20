@@ -242,6 +242,43 @@ jobs:
             Write-Host "All tools present."
           }
 
+      - name: 修补 package.ps1（CMake 3.31 吞反斜杠问题）
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Real cause, from logs-x64/strata-configure.log:
+          #   nvcc fatal : Cannot find compiler
+          #   'C:Program FilesMicrosoft Visual Studio2022Enterprise...cl.exe' in PATH
+          # Backslashes vanish as the path travels command-line -> CMake -> nvcc.
+          # Fix: give CMake forward-slash paths. CMake and nvcc both accept them.
+          # This edits the CI working copy only; the repo file is untouched.
+          $ps1 = 'scripts\package\windows\package.ps1'
+          $text = Get-Content -Raw -LiteralPath $ps1
+          $orig = $text
+
+          # $cl = (Get-Command cl).Source
+          $text = $text.Replace(
+            '$cl = (Get-Command cl).Source',
+            '$cl = (Get-Command cl).Source.Replace( [char]92, [char]47 )')
+
+          # $cc = (Get-Command clang-cl).Source
+          $text = $text.Replace(
+            '$cc = (Get-Command clang-cl).Source',
+            '$cc = (Get-Command clang-cl).Source.Replace( [char]92, [char]47 )')
+
+          # -DCMAKE_CUDA_COMPILER=$((Get-Command nvcc).Source)
+          $text = $text.Replace(
+            '-DCMAKE_CUDA_COMPILER=$((Get-Command nvcc).Source)',
+            '-DCMAKE_CUDA_COMPILER=$((Get-Command nvcc).Source.Replace( [char]92, [char]47 ))')
+
+          if ($text -eq $orig) { throw 'patch did not apply: package.ps1 layout changed' }
+
+          [IO.File]::WriteAllText((Resolve-Path $ps1), $text, (New-Object Text.UTF8Encoding($false)))
+          Write-Host 'patch applied. Patched lines:'
+          Get-Content -LiteralPath $ps1 |
+            Select-String -Pattern '\$cl = |\$cc = |-DCMAKE_CUDA_COMPILER=' |
+            ForEach-Object { Write-Host ('  ' + $_.Line.Trim()) }
+
       - name: 拉取依赖
         shell: powershell
         run: |
