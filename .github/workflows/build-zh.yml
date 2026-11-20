@@ -316,13 +316,17 @@ jobs:
           $text = $text.Replace($marker,
             $marker + "`r`n    if (`$env:EDGE0_CUDA_HOST_CL) { `$cl = `$env:EDGE0_CUDA_HOST_CL; Write-Host `"strata: cl = `$cl`" }")
 
-          # Fix 3: also drop --use-local-env. Not the root cause, but it makes
-          # nvcc trust the inherited INCLUDE/LIB instead of detecting them, which
-          # only adds ways for the two sides to disagree.
-          if (-not $text.Contains('--use-local-env -D_WINDOWS')) {
-            throw 'patch anchor "--use-local-env -D_WINDOWS" not found'
-          }
-          $text = $text.Replace('--use-local-env -D_WINDOWS', '-D_WINDOWS')
+          # Fix 3: tell CMake the CUDA compiler already works.
+          # CMake's trial link (CMakeTestCUDACompiler) never pulls in cudart in this
+          # configuration, so it dies on
+          #   LNK2019: unresolved external symbol __cudaRegisterFatBinary
+          # and CMake then declares the whole compiler broken. Declaring the
+          # compiler usable skips that trial; the real build still links cudart
+          # through the project's own settings.
+          $anchor = "'-DSTRATA_ENABLE_CUDA=ON', '-DSTRATA_PORTABLE=ON',"
+          if (-not $text.Contains($anchor)) { throw 'patch anchor for STRATA_ENABLE_CUDA not found' }
+          $text = $text.Replace($anchor,
+            "'-DSTRATA_ENABLE_CUDA=ON', '-DSTRATA_PORTABLE=ON', '-DCMAKE_CUDA_COMPILER_WORKS=1', '-DCMAKE_CUDA_HOST_COMPILER_WORKS=1',")
 
           if ($text -eq $orig) { throw 'patch did not apply: package.ps1 layout changed' }
 
