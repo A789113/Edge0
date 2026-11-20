@@ -1,20 +1,11 @@
 # .github/workflows/build-zh.yml
-# 简体中文定制版打包流程
+# 绠€浣撲腑鏂囧畾鍒剁増鎵撳寘娴佺▼
 #
-# 在 windows-latest（微软官方 Windows 机器）上原生编译整个 Edge0：
-#   Edge0 Chat.exe（Tauri 桌面应用）
-#   edge0-infer.exe（推理引擎，MSVC + Vulkan）
-#   edge0-strata\（strata.exe + Python 运行时 + serve 网页）
-# 产出 edge0-chat-<version>-windows-x64.zip，布局与官方发布一致，全部中文界面。
-#
-# 依据：官方打包脚本 scripts/package/windows/package.ps1 的三个阶段
-#   fetch（联网拉依赖）→ build（离线编译打包）→ verify（自检）
-# 本 workflow 复用该脚本，只额外装它需要的 CUDA Toolkit 和 Vulkan SDK。
-#
-# 注意：所有 run: | 脚本块一律纯 ASCII（英文），避免 Windows PowerShell 5.1
-# 在读取含中文的脚本时出现编码/解析错误；中文只出现在 name: 步骤标题。
-
-name: 构建中文版 Edge0 Chat
+# 鍦?windows-latest锛堝井杞畼鏂?Windows 鏈哄櫒锛変笂鍘熺敓缂栬瘧鏁翠釜 Edge0锛?#   Edge0 Chat.exe锛圱auri 妗岄潰搴旂敤锛?#   edge0-infer.exe锛堟帹鐞嗗紩鎿庯紝MSVC + Vulkan锛?#   edge0-strata\锛坰trata.exe + Python 杩愯鏃?+ serve 缃戦〉锛?# 浜у嚭 edge0-chat-<version>-windows-x64.zip锛屽竷灞€涓庡畼鏂瑰彂甯冧竴鑷达紝鍏ㄩ儴涓枃鐣岄潰銆?#
+# 渚濇嵁锛氬畼鏂规墦鍖呰剼鏈?scripts/package/windows/package.ps1 鐨勪笁涓樁娈?#   fetch锛堣仈缃戞媺渚濊禆锛夆啋 build锛堢绾跨紪璇戞墦鍖咃級鈫?verify锛堣嚜妫€锛?# 鏈?workflow 澶嶇敤璇ヨ剼鏈紝鍙澶栬瀹冮渶瑕佺殑 CUDA Toolkit 鍜?Vulkan SDK銆?#
+# 娉ㄦ剰锛氭墍鏈?run: | 鑴氭湰鍧椾竴寰嬬函 ASCII锛堣嫳鏂囷級锛岄伩鍏?Windows PowerShell 5.1
+# 鍦ㄨ鍙栧惈涓枃鐨勮剼鏈椂鍑虹幇缂栫爜/瑙ｆ瀽閿欒锛涗腑鏂囧彧鍑虹幇鍦?name: 姝ラ鏍囬銆?
+name: 鏋勫缓涓枃鐗?Edge0 Chat
 
 'on':
   workflow_dispatch:
@@ -26,7 +17,7 @@ permissions:
 
 jobs:
   build:
-    name: Windows x64 原生编译打包
+    name: Windows x64 鍘熺敓缂栬瘧鎵撳寘
     # windows-2022 = VS 2022 (MSVC 14.3x), which CUDA 13.0 accepts.
     # windows-latest now resolves to VS 18 / MSVC 14.52, which CUDA 13.0 rejects
     # in crt/host_config.h with "unsupported Microsoft Visual Studio version".
@@ -34,26 +25,23 @@ jobs:
     timeout-minutes: 330
 
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
+      - name: 妫€鍑轰唬鐮?        uses: actions/checkout@v4
 
-      - name: 安装 Node.js
+      - name: 瀹夎 Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: 安装 Rust（MSVC 目标）
-        uses: dtolnay/rust-toolchain@stable
+      - name: 瀹夎 Rust锛圡SVC 鐩爣锛?        uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
 
-      - name: 安装 Python 3.12
+      - name: 瀹夎 Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: 安装 LLVM（clang-cl / lld-link）
-        shell: powershell
+      - name: 瀹夎 LLVM锛坈lang-cl / lld-link锛?        shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           # The windows-2022 image has no winget but ships LLVM already
@@ -99,7 +87,7 @@ jobs:
             Write-Host "WARNING: clang-cl still not on PATH"
           }
 
-      - name: 安装 Vulkan SDK
+      - name: 瀹夎 Vulkan SDK
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -117,7 +105,7 @@ jobs:
           "VULKAN_SDK=$sdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$sdkRoot\Bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: 安装 CUDA Toolkit 13
+      - name: 瀹夎 CUDA Toolkit 13
         shell: powershell
         timeout-minutes: 60
         run: |
@@ -155,12 +143,11 @@ jobs:
           "CUDA_PATH=$cudaRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$cudaRoot\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: 加载 MSVC 开发环境
-        uses: ilammy/msvc-dev-cmd@v1
+      - name: 鍔犺浇 MSVC 寮€鍙戠幆澧?        uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
 
-      - name: 验证 nvcc 能配合 MSVC 工作
+      - name: 楠岃瘉 nvcc 鑳介厤鍚?MSVC 宸ヤ綔
         shell: powershell
         run: |
           $ErrorActionPreference = 'Continue'
@@ -194,7 +181,7 @@ jobs:
           # Non-fatal: this step only reports. package.ps1 does the real build.
           Write-Host "=== nvcc probe done ==="
 
-      - name: 构建前检查工具链
+      - name: 鏋勫缓鍓嶆鏌ュ伐鍏烽摼
         shell: powershell
         run: |
           $tools = @{
@@ -242,8 +229,7 @@ jobs:
             Write-Host "All tools present."
           }
 
-      - name: 统一 CUDA 宿主编译器路径（8.3 短名）
-        shell: powershell
+      - name: 缁熶竴 CUDA 瀹夸富缂栬瘧鍣ㄨ矾寰勶紙8.3 鐭悕锛?        shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           # NVIDIA rule (developer forums): the cl.exe named by -ccbin and the
@@ -301,8 +287,7 @@ jobs:
           Write-Host "cudadevrt.lib present: $(Test-Path (Join-Path $cudaLib 'cudadevrt.lib'))"
           Write-Host "cudart_static.lib present: $(Test-Path (Join-Path $cudaLib 'cudart_static.lib'))"
 
-      - name: 修补 package.ps1（CMake 3.31 吞反斜杠问题）
-        shell: powershell
+      - name: 淇ˉ package.ps1锛圕Make 3.31 鍚炲弽鏂滄潬闂锛?        shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           # History of this failure, straight from logs-x64/strata-configure.log:
@@ -361,7 +346,29 @@ jobs:
             Write-Host 'note: --use-local-env not present (already patched)'
           }
 
+          # Fix 5: scrub the build-machine paths that numpy's prebuilt wheel bakes
+          # into numpy/__config__.py. check.py rejects any package file holding
+          # $env:USERPROFILE, and numpy 2.5.3's wheel ships exactly that, so the
+          # self-check fails through no fault of this project:
+          #   build path in ...\numpy\__config__.py: /Users/runneradmin/, ...
+          # __config__ only feeds numpy.show_config(); rewriting those strings
+          # leaves every numeric routine untouched. A separate Python helper does
+          # the edit, which avoids nested quoting inside this PowerShell patch.
+          $scrubAnchor = "    Step 'check modules, PE machine and build paths'"
+          if (-not $text.Contains($scrubAnchor)) { throw 'patch anchor for check step not found' }
+          $scrubCall = '    & python "$PSScriptRoot\scrub_numpy_paths.py" $stage'
+          $text = $text.Replace($scrubAnchor, $scrubCall + "`r`n" + $scrubAnchor)
+
           if ($text -eq $orig) { throw 'patch did not apply: package.ps1 layout changed' }
+
+          # Write the scrub helper next to check.py, so $PSScriptRoot resolves it.
+          # The Python source travels as base64 to keep YAML indentation and
+          # quoting rules out of the picture entirely.
+          $scrubB64 = 'IiIiUmVwbGFjZSBidWlsZC1tYWNoaW5lIHBhdGhzIHRoYXQgcHJlYnVpbHQgd2hlZWxzIGJha2VkIGludG8gbWV0YWRhdGEgZmlsZXMuCgpudW1weSdzIG93biB3aGVlbCBzaGlwcyBudW1weS9fX2NvbmZpZ19fLnB5IGhvbGRpbmcgdGhlIGFic29sdXRlIHBhdGhzIG9mIHRoZQptYWNoaW5lIHRoYXQgYnVpbHQgaXQuIHBhY2thZ2UucHMxIHZlcmlmaWVzIHRoYXQgbm8gcGFja2FnZWQgZmlsZSBjb250YWlucyB0aGlzCm1hY2hpbmUncyBwcm9maWxlIHBhdGgsIHNvIHRoYXQgd2hlZWwgZmFpbHMgdGhlIGNoZWNrIG9uIGEgcnVubmVyIHdob3NlIHVzZXJuYW1lCmhhcHBlbnMgdG8gbWF0Y2guIF9fY29uZmlnX18gb25seSBmZWVkcyBudW1weS5zaG93X2NvbmZpZygpOyBubyBudW1lcmljIHJvdXRpbmUKcmVhZHMgaXQsIHNvIHJld3JpdGluZyB0aGUgcGF0aCBzdHJpbmdzIGlzIHNhZmUuCiIiIgppbXBvcnQgcmUKaW1wb3J0IHN5cwpmcm9tIHBhdGhsaWIgaW1wb3J0IFBhdGgKCiMgQW55ICIuLi5Vc2Vyc1w8bmFtZT4uLi4iIGZyYWdtZW50LCB3aXRoIGVpdGhlciBzbGFzaCwgb3B0aW9uYWxseSBwcmVjZWRlZCBieSBhCiMgZHJpdmUgbGV0dGVyLiBLZWVwcyB0aGUgcmVzdCBvZiB0aGUgZmlsZSBieXRlLWZvci1ieXRlIGludGFjdC4KUEFUVEVSTiA9IHJlLmNvbXBpbGUocmIiKD86W0EtWmEtel06KT9bXFwvXStbVXVdc2Vyc1tcXC9dK1teXCInXHJcblxcL10rW1xcL10/IikKCgpkZWYgbWFpbihyb290OiBzdHIpIC0+IGludDoKICAgIGNoYW5nZWQgPSAwCiAgICBmb3IgcGF0aCBpbiBzb3J0ZWQoUGF0aChyb290KS5yZ2xvYigiX19jb25maWdfXy5weSIpKToKICAgICAgICBkYXRhID0gcGF0aC5yZWFkX2J5dGVzKCkKICAgICAgICBmaXhlZCA9IFBBVFRFUk4uc3ViKGIiPGJ1aWxkLW1hY2hpbmU+LyIsIGRhdGEpCiAgICAgICAgaWYgZml4ZWQgIT0gZGF0YToKICAgICAgICAgICAgcGF0aC53cml0ZV9ieXRlcyhmaXhlZCkKICAgICAgICAgICAgcHJpbnQoZiJzY3J1YmJlZCB7cGF0aH0iKQogICAgICAgICAgICBjaGFuZ2VkICs9IDEKICAgIHByaW50KGYic2NydWJfbnVtcHlfcGF0aHM6IHtjaGFuZ2VkfSBmaWxlKHMpIHJld3JpdHRlbiIpCiAgICByZXR1cm4gMAoKCmlmIF9fbmFtZV9fID09ICJfX21haW5fXyI6CiAgICBzeXMuZXhpdChtYWluKHN5cy5hcmd2WzFdKSkK'
+          $scrubPath = 'scripts\package\windows\scrub_numpy_paths.py'
+          $scrubBytes = [Convert]::FromBase64String($scrubB64)
+          [IO.File]::WriteAllBytes((Join-Path (Get-Location) $scrubPath), $scrubBytes)
+          Write-Host ("wrote {0} ({1} bytes)" -f $scrubPath, $scrubBytes.Length)
 
           [IO.File]::WriteAllText((Resolve-Path $ps1), $text, (New-Object Text.UTF8Encoding($false)))
           Write-Host 'patch applied. Patched lines:'
@@ -369,19 +376,19 @@ jobs:
             Select-String -Pattern '\$cl = |\$cc = |-DCMAKE_CUDA_COMPILER=|\$cudaFlags = |strata: cl =' |
             ForEach-Object { Write-Host ('  ' + $_.Line.Trim()) }
 
-      - name: 拉取依赖
+      - name: 鎷夊彇渚濊禆
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           powershell -ExecutionPolicy Bypass -File .\scripts\package\windows\package.ps1 fetch -Cache C:\edge0-cache -Commit $env:GITHUB_SHA
 
-      - name: 编译打包
+      - name: 缂栬瘧鎵撳寘
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           powershell -ExecutionPolicy Bypass -File .\scripts\package\windows\package.ps1 build -Cache C:\edge0-cache -Out C:\edge0-out -Commit $env:GITHUB_SHA
 
-      - name: 校验自检
+      - name: 鏍￠獙鑷
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -389,7 +396,7 @@ jobs:
           if (-not $zip) { throw 'package zip not found' }
           powershell -ExecutionPolicy Bypass -File .\scripts\package\windows\package.ps1 verify -Zip $zip.FullName
 
-      - name: 清理产物中的声明协议文件
+      - name: 娓呯悊浜х墿涓殑澹版槑鍗忚鏂囦欢
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -421,7 +428,7 @@ jobs:
           $hash = (Get-FileHash -Algorithm SHA256 $zip.FullName).Hash.ToLower()
           Set-Content -Path "$($zip.FullName).sha256" -Value "$hash  $($zip.Name)"
 
-      - name: 上传打包产物
+      - name: 涓婁紶鎵撳寘浜х墿
         uses: actions/upload-artifact@v4
         with:
           name: edge0-chat-zh-windows-x64
@@ -430,7 +437,7 @@ jobs:
             C:\edge0-out\edge0-chat-*-windows-x64.zip.sha256
           retention-days: 14
 
-      - name: 上传构建日志
+      - name: 涓婁紶鏋勫缓鏃ュ織
         if: failure()
         uses: actions/upload-artifact@v4
         with:
