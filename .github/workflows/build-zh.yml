@@ -293,7 +293,7 @@ jobs:
           $text = Get-Content -Raw -LiteralPath $ps1
           $orig = $text
 
-          # Forward-slash paths (fix 1, keeps working)
+          # Forward-slash paths (fix 1, already proven to work)
           $text = $text.Replace(
             '$cl = (Get-Command cl).Source',
             '$cl = (Get-Command cl).Source.Replace( [char]92, [char]47 )')
@@ -304,31 +304,30 @@ jobs:
             '-DCMAKE_CUDA_COMPILER=$((Get-Command nvcc).Source)',
             '-DCMAKE_CUDA_COMPILER=$((Get-Command nvcc).Source.Replace( [char]92, [char]47 ))')
 
-          # Fix 2: point the CUDA host compiler at the space-free junction path
-          # (C:\cl\bin\HostX64\x64\cl.exe). No spaces means CMake never rewrites
-          # it to an 8.3 short name, so nvcc's -ccbin check passes.
+          # Fix 2: use the space-free junction as the CUDA host compiler
+          # (CMake would otherwise rewrite a spaced path to its 8.3 form and
+          # nvcc rejects the mismatch against PATH).
           $marker = 'Step "edge0-strata (CUDA $($C.CudaArchs))"'
-          if (-not $text.Contains($marker)) { throw 'patch anchor for strata step not found' }
+          if (-not $text.Contains($marker)) { throw 'patch anchor "Step edge0-strata" not found' }
+          $text = $text.Replace($marker,
+            $marker + "`r`n    if (`$env:EDGE0_CL_NO_SPACE) { `$cl = `$env:EDGE0_CL_NO_SPACE; Write-Host `"strata: cl = `$cl`" }")
 
-          $injectLines = @(
-            'Step "edge0-strata (CUDA $($C.CudaArchs))"',
-            '# Use the space-free junction so nvcc matches -ccbin against PATH.',
-            'if ($env:EDGE0_CL_NO_SPACE -and (Test-Path ($env:EDGE0_CL_NO_SPACE.Replace([char]47,[char]92)))) {',
-            '  $cl = $env:EDGE0_CL_NO_SPACE',
-            '  Write-Host "strata: host compiler = $cl"',
-            '} else {',
-            '  Write-Host "strata: no space-free cl; keeping $cl"',
-            '}'
-          )
-          $inject = ($injectLines -join "`r`n    ")
-          $text = $text.Replace($marker, $inject)
+          # Fix 3: drop --use-local-env. With that flag nvcc trusts the inherited
+          # INCLUDE/LIB (still pointing at the long "Program Files" tree) instead
+          # of detecting the environment itself, and reports
+          #   "nvcc fatal : Host compiler targets unsupported OS"
+          # because the -ccbin path and those variables disagree.
+          if (-not $text.Contains('--use-local-env -D_WINDOWS')) {
+            throw 'patch anchor "--use-local-env -D_WINDOWS" not found'
+          }
+          $text = $text.Replace('--use-local-env -D_WINDOWS', '-D_WINDOWS')
 
           if ($text -eq $orig) { throw 'patch did not apply: package.ps1 layout changed' }
 
           [IO.File]::WriteAllText((Resolve-Path $ps1), $text, (New-Object Text.UTF8Encoding($false)))
           Write-Host 'patch applied. Patched lines:'
           Get-Content -LiteralPath $ps1 |
-            Select-String -Pattern '\$cl = |\$cc = |-DCMAKE_CUDA_COMPILER=|cl dir on PATH' |
+            Select-String -Pattern '\$cl = |\$cc = |-DCMAKE_CUDA_COMPILER=|\$cudaFlags = |strata: cl =' |
             ForEach-Object { Write-Host ('  ' + $_.Line.Trim()) }
 
       - name: 拉取依赖
