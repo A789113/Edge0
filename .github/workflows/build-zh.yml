@@ -78,40 +78,38 @@ jobs:
 
       - name: 安装 CUDA Toolkit 13
         shell: powershell
+        timeout-minutes: 60
         run: |
           $ErrorActionPreference = 'Stop'
-          $url = 'https://developer.download.nvidia.com/compute/cuda/13.0.0/network_installers/cuda_13.0.0_windows_network.exe'
-          $installer = "$env:TEMP\cuda-installer.exe"
-          Write-Host "Downloading CUDA network installer..."
+          # Use the local (offline) installer instead of the network bootstrapper:
+          # the bootstrapper exits with 0xE0E00019 when sub-package download fails,
+          # and component names are not documented for this project.
+          $url = 'https://developer.download.nvidia.com/compute/cuda/13.0.0/local_installers/cuda_13.0.0_windows.exe'
+          $installer = "$env:TEMP\cuda-local.exe"
+          Write-Host "Downloading CUDA local installer (~3 GB)..."
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          $ProgressPreference = 'SilentlyContinue'
           Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
-          Write-Host "Installing CUDA..."
-          # cmd /c with start /wait blocks until the bootstrapper's children exit;
-          # Start-Process -Wait returns early because the network installer hands off.
-          $args8 = '-s nvcc_13.0 cudart_13.0 cudart_dev_13.0 visual_studio_integration_13.0 nvrtc_13.0 nvrtc_dev_13.0 cublas_13.0 cublas_dev_13.0'
-          $p = Start-Process -FilePath 'cmd.exe' -ArgumentList "/c `"`"$installer`" $args8`"" -Wait -PassThru -NoNewWindow
+          $sw.Stop()
+          $size = (Get-Item $installer).Length
+          Write-Host ("Downloaded {0:N1} MB in {1:N0} s" -f ($size/1MB), $sw.Elapsed.TotalSeconds)
+          if ($size -lt 2GB) { throw "installer looks truncated: $size bytes" }
+
+          Write-Host "Installing CUDA (silent, all default components)..."
+          $p = Start-Process -FilePath $installer -ArgumentList '-s' -Wait -PassThru -NoNewWindow
           Write-Host "CUDA installer exit code: $($p.ExitCode)"
-          # Wait for the toolkit directory to appear (up to 10 minutes).
+
           $cudaBase = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA'
-          $waited = 0
-          while (-not (Test-Path $cudaBase) -and $waited -lt 600) {
-            Start-Sleep -Seconds 15
-            $waited += 15
-            Write-Host "  waiting for $cudaBase ($waited s)"
-          }
-          if (-not (Test-Path $cudaBase)) { throw "CUDA toolkit directory never appeared after $waited s" }
-          $cudaRoot = Get-ChildItem $cudaBase -Directory | Sort-Object Name -Descending | Select-Object -First 1
-          if (-not $cudaRoot) { throw "no CUDA version directory under $cudaBase" }
-          $cudaRoot = $cudaRoot.FullName
+          if (-not (Test-Path $cudaBase)) { throw "CUDA toolkit directory missing after install" }
+          $cudaRoot = (Get-ChildItem $cudaBase -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
           Write-Host "CUDA root: $cudaRoot"
-          # Verify dev headers exist (last run failed on missing crt/host_config.h)
           $hostConfig = Join-Path $cudaRoot 'include\crt\host_config.h'
           if (-not (Test-Path $hostConfig)) {
-            Write-Host "ERROR: missing $hostConfig"
-            Write-Host "Listing include dir:"
-            Get-ChildItem (Join-Path $cudaRoot 'include') -ErrorAction SilentlyContinue | Select-Object -First 20 | ForEach-Object { Write-Host ("  " + $_.Name) }
+            Write-Host "crt/host_config.h missing; include dir contents:"
+            Get-ChildItem (Join-Path $cudaRoot 'include') -ErrorAction SilentlyContinue | Select-Object -First 30 | ForEach-Object { Write-Host ("  " + $_.Name) }
             throw "CUDA dev headers incomplete: crt/host_config.h not found"
           }
-          Write-Host "CUDA dev headers OK: $hostConfig"
+          Write-Host "CUDA dev headers OK"
           Write-Host "CUDA_PATH=$cudaRoot"
           "CUDA_PATH=$cudaRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$cudaRoot\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
