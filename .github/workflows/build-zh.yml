@@ -85,11 +85,20 @@ jobs:
           Write-Host "Downloading CUDA network installer..."
           Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
           Write-Host "Installing CUDA..."
-          Start-Process -FilePath $installer -ArgumentList '-s','nvcc_13.0','cudart_13.0','visual_studio_integration_13.0' -Wait -NoNewWindow
+          Start-Process -FilePath $installer -ArgumentList '-s','nvcc_13.0','cudart_13.0','cudart_dev_13.0','visual_studio_integration_13.0','nvrtc_13.0','nvrtc_dev_13.0','cublas_13.0','cublas_dev_13.0' -Wait -NoNewWindow
           $cudaRoot = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0'
           if (-not (Test-Path "$cudaRoot\bin\nvcc.exe")) {
             $cudaRoot = (Get-ChildItem 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA' -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
           }
+          # Verify dev headers exist (last run failed on missing crt/host_config.h)
+          $hostConfig = Join-Path $cudaRoot 'include\crt\host_config.h'
+          if (-not (Test-Path $hostConfig)) {
+            Write-Host "ERROR: missing $hostConfig"
+            Write-Host "Listing include dir:"
+            Get-ChildItem (Join-Path $cudaRoot 'include') -ErrorAction SilentlyContinue | Select-Object -First 20 | ForEach-Object { Write-Host ("  " + $_.Name) }
+            throw "CUDA dev headers incomplete: crt/host_config.h not found"
+          }
+          Write-Host "CUDA dev headers OK: $hostConfig"
           Write-Host "CUDA_PATH=$cudaRoot"
           "CUDA_PATH=$cudaRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$cudaRoot\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
@@ -147,19 +156,19 @@ jobs:
             Write-Host "All tools present."
           }
 
-      - name: fetch 依赖
+      - name: 拉取依赖
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           powershell -ExecutionPolicy Bypass -File .\scripts\package\windows\package.ps1 fetch -Cache C:\edge0-cache -Commit $env:GITHUB_SHA
 
-      - name: build 打包
+      - name: 编译打包
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           powershell -ExecutionPolicy Bypass -File .\scripts\package\windows\package.ps1 build -Cache C:\edge0-cache -Out C:\edge0-out -Commit $env:GITHUB_SHA
 
-      - name: verify 自检
+      - name: 校验自检
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
