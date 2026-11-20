@@ -316,17 +316,28 @@ jobs:
           $text = $text.Replace($marker,
             $marker + "`r`n    if (`$env:EDGE0_CUDA_HOST_CL) { `$cl = `$env:EDGE0_CUDA_HOST_CL; Write-Host `"strata: cl = `$cl`" }")
 
-          # Fix 3: tell CMake the CUDA compiler already works.
-          # CMake's trial link (CMakeTestCUDACompiler) never pulls in cudart in this
-          # configuration, so it dies on
-          #   LNK2019: unresolved external symbol __cudaRegisterFatBinary
-          # and CMake then declares the whole compiler broken. Declaring the
-          # compiler usable skips that trial; the real build still links cudart
-          # through the project's own settings.
+          # Fix 3: force CMake to accept the CUDA compiler without running its
+          # trial link. In Modules/CMakeTestCUDACompiler.cmake the ONLY branch
+          # that skips the test is:
+          #     if(CMAKE_CUDA_COMPILER_FORCED) set(..._WORKS TRUE) return()
+          # and a few lines below it does  unset(CMAKE_CUDA_COMPILER_WORKS CACHE)
+          # which is why passing _WORKS does nothing at all.
+          # The trial link fails on
+          #     LNK2019: unresolved external symbol __cudaRegisterFatBinary
+          # because that throwaway link line never gets cudart.lib.
           $anchor = "'-DSTRATA_ENABLE_CUDA=ON', '-DSTRATA_PORTABLE=ON',"
           if (-not $text.Contains($anchor)) { throw 'patch anchor for STRATA_ENABLE_CUDA not found' }
           $text = $text.Replace($anchor,
-            "'-DSTRATA_ENABLE_CUDA=ON', '-DSTRATA_PORTABLE=ON', '-DCMAKE_CUDA_COMPILER_WORKS=1', '-DCMAKE_CUDA_HOST_COMPILER_WORKS=1',")
+            "'-DSTRATA_ENABLE_CUDA=ON', '-DSTRATA_PORTABLE=ON', '-DCMAKE_CUDA_COMPILER_FORCED=1',")
+
+          # Fix 4: drop --use-local-env so nvcc detects the environment itself
+          # instead of trusting the inherited INCLUDE/LIB.
+          if ($text.Contains('--use-local-env -D_WINDOWS')) {
+            $text = $text.Replace('--use-local-env -D_WINDOWS', '-D_WINDOWS')
+            Write-Host 'removed --use-local-env'
+          } else {
+            Write-Host 'note: --use-local-env not present (already patched)'
+          }
 
           if ($text -eq $orig) { throw 'patch did not apply: package.ps1 layout changed' }
 
