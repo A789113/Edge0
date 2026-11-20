@@ -85,11 +85,24 @@ jobs:
           Write-Host "Downloading CUDA network installer..."
           Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
           Write-Host "Installing CUDA..."
-          Start-Process -FilePath $installer -ArgumentList '-s','nvcc_13.0','cudart_13.0','cudart_dev_13.0','visual_studio_integration_13.0','nvrtc_13.0','nvrtc_dev_13.0','cublas_13.0','cublas_dev_13.0' -Wait -NoNewWindow
-          $cudaRoot = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0'
-          if (-not (Test-Path "$cudaRoot\bin\nvcc.exe")) {
-            $cudaRoot = (Get-ChildItem 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA' -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
+          # cmd /c with start /wait blocks until the bootstrapper's children exit;
+          # Start-Process -Wait returns early because the network installer hands off.
+          $args8 = '-s nvcc_13.0 cudart_13.0 cudart_dev_13.0 visual_studio_integration_13.0 nvrtc_13.0 nvrtc_dev_13.0 cublas_13.0 cublas_dev_13.0'
+          $p = Start-Process -FilePath 'cmd.exe' -ArgumentList "/c `"`"$installer`" $args8`"" -Wait -PassThru -NoNewWindow
+          Write-Host "CUDA installer exit code: $($p.ExitCode)"
+          # Wait for the toolkit directory to appear (up to 10 minutes).
+          $cudaBase = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA'
+          $waited = 0
+          while (-not (Test-Path $cudaBase) -and $waited -lt 600) {
+            Start-Sleep -Seconds 15
+            $waited += 15
+            Write-Host "  waiting for $cudaBase ($waited s)"
           }
+          if (-not (Test-Path $cudaBase)) { throw "CUDA toolkit directory never appeared after $waited s" }
+          $cudaRoot = Get-ChildItem $cudaBase -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          if (-not $cudaRoot) { throw "no CUDA version directory under $cudaBase" }
+          $cudaRoot = $cudaRoot.FullName
+          Write-Host "CUDA root: $cudaRoot"
           # Verify dev headers exist (last run failed on missing crt/host_config.h)
           $hostConfig = Join-Path $cudaRoot 'include\crt\host_config.h'
           if (-not (Test-Path $hostConfig)) {
