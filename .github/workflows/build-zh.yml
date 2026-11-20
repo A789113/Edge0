@@ -56,10 +56,41 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          winget install --id LLVM.LLVM --silent --accept-package-agreements --accept-source-agreements
-          $llvm = 'C:\Program Files\LLVM\bin'
-          if (Test-Path $llvm) { $llvm | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append }
-          Write-Host "LLVM installed"
+          # The windows-2022 image has no winget but ships LLVM already
+          # (llvmArm64 / clang-cl under Visual Studio). Probe first; only
+          # fall back to an installer when clang-cl is genuinely absent.
+          $found = Get-Command clang-cl.exe -ErrorAction SilentlyContinue
+          if ($found) {
+            Write-Host "clang-cl already present: $($found.Source)"
+          } else {
+            Write-Host "clang-cl not on PATH; looking under Visual Studio..."
+            $candidates = @(
+              'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\bin',
+              'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\bin',
+              'C:\Program Files\LLVM\bin'
+            )
+            foreach ($c in $candidates) {
+              if (Test-Path (Join-Path $c 'clang-cl.exe')) {
+                Write-Host "using $c"
+                $c | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+                $found = $true
+                break
+              }
+            }
+            if (-not $found) {
+              Write-Host "downloading LLVM release archive..."
+              $zip = "$env:TEMP\llvm.zip"
+              $ProgressPreference = 'SilentlyContinue'
+              Invoke-WebRequest -Uri 'https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/LLVM-18.1.8-win64.exe' -OutFile "$env:TEMP\llvm-installer.exe" -UseBasicParsing
+              Start-Process -FilePath "$env:TEMP\llvm-installer.exe" -ArgumentList '/S' -Wait -NoNewWindow
+              $llvm = 'C:\Program Files\LLVM\bin'
+              if (Test-Path $llvm) { $llvm | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append }
+            }
+          }
+          # Report what we ended up with
+          $clang = Get-Command clang-cl.exe -ErrorAction SilentlyContinue
+          if ($clang) { Write-Host "clang-cl ready: $($clang.Source)"; & $clang.Source --version | Select-Object -First 1 | ForEach-Object { Write-Host $_ } }
+          else { Write-Host "WARNING: clang-cl still not on PATH" }
 
       - name: 安装 Vulkan SDK
         shell: powershell
